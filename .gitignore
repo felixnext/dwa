@@ -6,6 +6,7 @@ old/
 tmp/
 src/.idea/
 src/__pycache__/
+.vscode
 # Extensions
 *.pyc
 *.DS_Store

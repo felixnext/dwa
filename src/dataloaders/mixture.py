@@ -171,6 +171,10 @@ def get(seed=0,fixed_order=False,pc_valid=0.15):
                         image=image.expand(1,3,image.size(2),image.size(3))
                         data[n][s]['x'].append(image)
                         data[n][s]['y'].append(target.numpy()[0])
+            elif idx == 8:
+                # CUB 200
+                # TODO: implement loader
+                pass
             else:
                 print('ERROR: Undefined data set',n)
                 sys.exit()

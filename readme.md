@@ -1,20 +1,31 @@
-# Overcoming Catastrophic Forgetting with Hard Attention to the Task
+# Pay attention to the Task: Avoid forgetting in sequential learning through dynamic weight allocation
+
+> Note: Repository is forked from https://github.com/joansj/hat
+> Reference: 
 
 ## Abstract
 
-Catastrophic forgetting occurs when a neural network loses the information learned with the first task, after training on a second task. This problem remains a hurdle for artificial intelligence systems with sequential learning capabilities. In this paper, we propose a task-based hard attention mechanism that preserves previous tasks' information without affecting the current task's learning. A hard attention mask is learned concurrently to every task through stochastic gradient descent, and previous masks are exploited to constrain such learning. We show that the proposed mechanism is effective for reducing catastrophic forgetting, cutting current rates by 45 to 80%. We also show that it is robust to different hyperparameter choices, and that it offers a number of monitoring capabilities. The approach features the possibility to control both the stability and compactness of the learned knowledge, which we believe makes it also attractive for online learning or network compression applications.
+While learning multiple tasks, especially if trained in sequential order, classic learning techniques for DNNs tend to leverage the
+weights of the network in a suboptimal manner. This results in the overwriting of relevant information and in turn to catastrophic forgetting.
+Such information loss limits the capabilities for real-world learning of
+these network architectures and remains one of the hurdles towards artifical general intelligence. In this paper, we introduce a novel attention
+based technique that learns a semantic distribution of information across
+network weights. Our approach generates weight masks during inference,
+allowing the network to choose optimal weight configurations based on
+input type classification. We show that our approach outperforms existing
+techniques (such as EWC and HAT) on sequentially learning multiple
+datasets and that it is robust against multiple common network topologies. Furthermore, we show that it learns a semantic understanding of
+weight relevance w.r.t. task information, which we believe can also aid
+generalization and one-shot learning.
 
 ## Authors
 
-Joan Serra, Didac Suris, Marius Miron, & Alexandros Karatzoglou.
+Felix Geilert
 
 ## Reference and Link to Paper
 
+TODO
 
-
-Serrà, J., Surís, D., Miron, M. & Karatzoglou, A.. (2018). Overcoming Catastrophic Forgetting with Hard Attention to the Task. Proceedings of the 35th International Conference on Machine Learning, in PMLR 80:4548-4557
-
-Link: [http://proceedings.mlr.press/v80/serra18a.html](http://proceedings.mlr.press/v80/serra18a.html)
 
 ## Installing
 
