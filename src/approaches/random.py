@@ -6,7 +6,7 @@ import utils
 
 class Appr(object):
 
-    def __init__(self,model,nepochs=0,sbatch=0,lr=0,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,args=None):
+    def __init__(self,model,nepochs=0,sbatch=0,lr=0,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000):
         self.model=model
 
         self.criterion=None

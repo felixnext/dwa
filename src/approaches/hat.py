@@ -8,7 +8,7 @@ import utils
 
 class Appr(object):
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,lamb=0.75,smax=400,args=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,lamb=0.75,smax=400):
         self.model=model
 
         self.nepochs=nepochs
@@ -22,13 +22,9 @@ class Appr(object):
         self.ce=torch.nn.CrossEntropyLoss()
         self.optimizer=self._get_optimizer()
 
+        print("Setting Parameters to:\n\tlamba: {}\n\tsmax: {}".format(lamb, smax))
         self.lamb=lamb          # Grid search = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2.5, 4]; chosen was 0.75
         self.smax=smax          # Grid search = [25, 50, 100, 200, 400, 800]; chosen was 400
-        if len(args.parameter)>=1:
-            params=args.parameter.split(',')
-            print('Setting parameters to',params)
-            self.lamb=float(params[0])
-            self.smax=float(params[1])
 
         self.mask_pre=None
         self.mask_back=None
@@ -142,7 +138,7 @@ class Appr(object):
                     p.grad.data*=self.smax/s*num/den
 
             # Apply step
-            torch.nn.utils.clip_grad_norm(self.model.parameters(),self.clipgrad)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(),self.clipgrad)
             self.optimizer.step()
 
             # Constrain embeddings
@@ -172,9 +168,10 @@ class Appr(object):
         for i in range(0,len(r),self.sbatch):
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
-            images=torch.autograd.Variable(x[b],volatile=True)
-            targets=torch.autograd.Variable(y[b],volatile=True)
-            task=torch.autograd.Variable(torch.LongTensor([t]).cuda(),volatile=True)
+            with torch.no_grad():
+                images=torch.autograd.Variable(x[b])
+                targets=torch.autograd.Variable(y[b])
+                task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
 
             # Forward
             outputs,masks=self.model.forward(task,images,s=self.smax)

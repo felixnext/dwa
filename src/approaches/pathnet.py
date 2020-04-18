@@ -9,7 +9,7 @@ from copy import deepcopy
 class Appr(object):
     # Based on paper and largely on https://github.com/dai-dao/pathnet-pytorch and https://github.com/kimhc6028/pathnet-pytorch
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=1000,generations=20,args=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=1000,generations=20):
         self.model=model
         self.initial_model=deepcopy(model)
 
@@ -20,13 +20,9 @@ class Appr(object):
 
         self.ntasks = self.model.ntasks
 
+        print("Setting generations to: {}".format(generations))
         self.generations = generations       # Grid search = [5,10,20,50,100,200]; best was 20
         self.P = 2              # from paper Secs 2.4 and 2.5, numbers of the individuals in each generation/paths to be trained
-
-        if len(args.parameter)>=1:
-            params=args.parameter.split(',')
-            print('Setting parameters to',params)
-            self.generations=int(params[0])
 
         self.nepochs=nepochs//self.generations   # To maintain same number of training updates
         self.sbatch=sbatch

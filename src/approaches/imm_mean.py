@@ -10,7 +10,7 @@ import utils
 class Appr(object):
     """ Class implementing the Incremental Moment Matching (mean) approach described in https://arxiv.org/abs/1703.08475 """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,regularizer=0.0001,alpha=0.7,args=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,regularizer=0.0001,alpha=0.7):
         self.model=model
         self.model_old=None
 
@@ -25,13 +25,9 @@ class Appr(object):
         self.ce = torch.nn.CrossEntropyLoss()
         self.optimizer=self._get_optimizer()
 
+        print("Setting regularizer to {}".format(regularizer))
         self.reg=regularizer    # Grid search = [0.01,0.005,0.001,0.0005,0.0001,0.00005,0.000001]; best was 0.0001
         #self.alpha=alpha       # We assume the same alpha for all tasks. Unrealistic to tune one alpha per task (num_task-1 alphas) when we have a lot of tasks.
-        if len(args.parameter)>=1:
-            params=args.parameter.split(',')
-            print('Setting parameters to',params)
-            self.reg=float(params[0])
-            #self.alpha=float(params[1])
 
         return
 

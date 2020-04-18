@@ -8,7 +8,7 @@ import utils
 class Appr(object):
     """ Class implementing the Elastic Weight Consolidation approach described in http://arxiv.org/abs/1612.00796 """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=100,lamb=5000,args=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=100,lamb=5000):
         self.model=model
         self.model_old=None
         self.fisher=None
@@ -23,11 +23,8 @@ class Appr(object):
 
         self.ce=torch.nn.CrossEntropyLoss()
         self.optimizer=self._get_optimizer()
+        print('Setting lambda to',lamb)
         self.lamb=lamb                      # Grid search = [500,1000,2000,5000,10000,20000,50000]; best was 5000
-        if len(args.parameter)>=1:
-            params=args.parameter.split(',')
-            print('Setting parameters to',params)
-            self.lamb=float(params[0])
 
         return
 

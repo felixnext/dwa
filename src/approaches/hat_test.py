@@ -8,7 +8,7 @@ import utils
 
 class Appr(object):
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,lamb=0.75,smax=400,args=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,lamb=0.75,smax=400):
         self.model=model
 
         self.nepochs=nepochs
@@ -26,24 +26,6 @@ class Appr(object):
         self.smax=smax
         self.logpath = None
         self.single_task = False
-        if len(args.parameter)>=1:
-            params=args.parameter.split(',')
-            print('Setting parameters to',params)
-            if len(params)>1:
-                if utils.is_number(params[0]):
-                    self.lamb=float(params[0])
-                else:
-                    self.logpath = params[0]
-                if utils.is_number(params[1]):
-                    self.smax=float(params[1])
-                else:
-                    self.logpath = params[1]
-                if len(params)>2 and not utils.is_number(params[2]):
-                    self.logpath = params[2]
-                if len(params)>3 and utils.is_number(params[3]):
-                    self.single_task = int(params[3])
-            else:
-                self.logpath = args.parameter
 
         if self.logpath is not None:
             self.logs={}

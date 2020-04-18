@@ -10,7 +10,7 @@ import utils
 class Appr(object):
     """ Class implementing the Incremental Moment Matching (mode) approach described in https://arxiv.org/abs/1703.08475 """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=1000,lamb=0.01,args=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=1000,lamb=0.01):
         self.model=model
         self.model_old=None
         self.fisher=None
@@ -26,13 +26,9 @@ class Appr(object):
         self.ce = torch.nn.CrossEntropyLoss()
         self.optimizer=self._get_optimizer()
 
+        print("Setting lambda to {}".format(lamb))
         self.lamb=lamb      # Grid search = [10, 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5]; best was 1
         #self.alpha=0.5     # We assume the same alpha for all tasks. Unrealistic to tune one alpha per task (num_task-1 alphas) when we have a lot of tasks.
-
-        if len(args.parameter)>=1:
-            params=args.parameter.split(',')
-            print('Setting parameters to',params)
-            self.lamb=float(params[0])
 
         return
 

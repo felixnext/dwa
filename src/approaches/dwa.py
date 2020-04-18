@@ -6,4 +6,8 @@ import utils
 
 class Appr(object):
     # TODO: implement approach
-    pass
+
+    def __init__(self):
+        pass
+
+    def 

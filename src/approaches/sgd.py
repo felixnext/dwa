@@ -6,7 +6,7 @@ import utils
 
 class Appr(object):
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,args=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000):
         self.model=model
 
         self.nepochs=nepochs
@@ -91,7 +91,7 @@ class Appr(object):
             # Backward
             self.optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm(self.model.parameters(),self.clipgrad)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(),self.clipgrad)
             self.optimizer.step()
 
         return
@@ -109,8 +109,11 @@ class Appr(object):
         for i in range(0,len(r),self.sbatch):
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
-            images=torch.autograd.Variable(x[b],volatile=True)
-            targets=torch.autograd.Variable(y[b],volatile=True)
+
+            # avoid gradient on this
+            with torch.no_grad():
+                images=torch.autograd.Variable(x[b])
+                targets=torch.autograd.Variable(y[b])
 
             # Forward
             outputs=self.model.forward(images)
@@ -120,8 +123,9 @@ class Appr(object):
             hits=(pred==targets).float()
 
             # Log
-            total_loss+=loss.data.cpu().numpy()[0]*len(b)
-            total_acc+=hits.sum().data.cpu().numpy()[0]
+            # NOTE: removed index [0] here (appears to be change in numpy) - for next 2 lines
+            total_loss+=loss.data.cpu().numpy()*len(b)
+            total_acc+=hits.sum().data.cpu().numpy()
             total_num+=len(b)
 
         return total_loss/total_num,total_acc/total_num

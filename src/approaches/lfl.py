@@ -8,7 +8,7 @@ import utils
 class Appr(object):
     """ Class implementing the Less Forgetting Learning approach described in http://arxiv.org/abs/1607.00122 """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=200,lamb=0.05,args=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=200,lamb=0.05):
         self.model=model
         self.model_old=None
 

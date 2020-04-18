@@ -1,7 +1,8 @@
 # Pay attention to the Task: Avoid forgetting in sequential learning through dynamic weight allocation
 
 > Note: Repository is forked from https://github.com/joansj/hat
-> Reference: 
+>
+> Reference for original code: Serrà, J., Surís, D., Miron, M. & Karatzoglou, A.. (2018). Overcoming Catastrophic Forgetting with Hard Attention to the Task. Proceedings of the 35th International Conference on Machine Learning, in PMLR 80:4548-4557
 
 ## Abstract
 

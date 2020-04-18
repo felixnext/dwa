@@ -8,7 +8,7 @@ import utils
 class Appr(object):
     """ Class implementing the Learning Without Forgetting approach described in https://arxiv.org/abs/1606.09282 """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=100,lamb=2,T=1,args=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=100,lamb=2,T=1):
         self.model=model
         self.model_old=None
 
@@ -22,14 +22,9 @@ class Appr(object):
 
         self.ce=torch.nn.CrossEntropyLoss()
         self.optimizer=self._get_optimizer()
+        print("Setting parameters to:\n\tlamb: {}\n\tT: {}".format(lamb, T))
         self.lamb=lamb          # Grid search = [0.1, 0.5, 1, 2, 4, 8, 10]; best was 2
         self.T=T                # Grid search = [0.5,1,2,4]; best was 1
-
-        if len(args.parameter)>=1:
-            params=args.parameter.split(',')
-            print('Setting parameters to',params)
-            self.lamb=float(params[0])
-            self.T=float(params[1])
 
         return
 
