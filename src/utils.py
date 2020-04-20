@@ -3,6 +3,7 @@ import numpy as np
 from copy import deepcopy
 import torch
 from tqdm import tqdm
+from PIL import Image
 
 ########################################################################################################################
 
@@ -55,7 +56,23 @@ def freeze_model(model):
 ########################################################################################################################
 
 def compute_conv_output_size(Lin,kernel_size,stride=1,padding=0,dilation=1):
-    return int(np.floor((Lin+2*padding-dilation*(kernel_size-1)-1)/float(stride)+1))
+    '''Computes the output of a specific conv layer given the parameters and input size along one dimension.
+    
+    Args:
+        Lin (int): Input size along the dimension
+        kernel_size (int): Size of the kernel
+        stride (int): Spacing between different kernel steps
+        padding (int): Padding applied to the side of each image
+        dilation (int): Spacing between the elements of the kernel
+    
+    Returns:
+        Int of the size along the dimension after convolution is applied
+    '''
+    # note: padding increases the size of the image 
+    # note: increases the effective size (as the kernel grows larger by the space between, while the stride stays the same)
+    return int(np.floor(
+        (Lin + 2*padding - dilation*(kernel_size-1) - 1) / float(stride) + 1
+    ))
 
 ########################################################################################################################
 
@@ -75,6 +92,89 @@ def compute_mean_std_dataset(dataset):
     std=(std/(len(dataset)*image.size(2)*image.size(3)-1)).sqrt()
 
     return mean, std
+
+def _resize(img, size):
+  img_size = img.size
+  if type(size) == tuple or type(size) == list or type(size) == np.ndarray:
+    frac = min((size[0] / img_size[0], size[1] / img_size[1]))
+    scale = (frac, frac)
+  elif type(size) == int:
+    frac = float(size) / max(img_size)
+    scale = (frac, frac)
+  else:
+    raise ValueError("Size has unkown type ({}: {})".format(type(size), size))
+
+  out_size = (int(img_size[0] * scale[0]), int(img_size[1] * scale[1]))
+  return img.resize(out_size), scale
+
+def _pad(img, color_arr, pos):
+  if pos == "topleft":
+    pad_pos = [0, 0]
+  elif pos == "center":
+    pad_pos = [int(np.floor((color_arr.shape[0] - img.size[0]) / 2)), int(np.floor((color_arr.shape[1] - img.size[1]) / 2))]
+
+  color = Image.fromarray(color_arr, "RGB")
+  color.paste(img, pad_pos)
+  
+  return color
+
+def resize_and_pad(img, size, pad_mode, color=None):
+  '''Rescales the image and pads the remaining stuff.
+  Relevant pad-modes:
+  - stretch = stretches the image to the new aspect ratio
+  - move_center = centers the image and fills the rest with `color` (or black)
+  - move_center_random = centers the image and fills the rest with random color
+  - move_topleft = adds image to the top left and fills rest with color
+  - move_topleft_random
+  - fit_center
+  - fit_center_random
+  - fit_topleft
+  - fit_topleft_random
+  Args:
+    img (numpy.array): Array containing the image data.
+    size (tuple): target size of the image
+    pad_mode (str): Mode used for padding the image
+  Returns:
+    img (numpy.array): The updated image
+    scale (tuple): The stretch factors along x and y axis (for adjustment of labels)
+  '''
+  # simply resize the image
+  if pad_mode == 'stretch':
+    return img.resize(size), (size[0] / img.size[0], size[1] / img.size[1])
+
+  # create the padding array
+  # NOTE: check for data type (0 to 1 vs 0 to 255) (int vs float)
+  pad_split = pad_mode.split('_')
+  color_arr = None
+  if len(pad_split) <= 2 or pad_split[2] != 'random':
+    color = [0, 0, 0] if color is None else color
+    color_arr = np.stack([np.full(size, c, dtype=np.float32) for c in color], axis=-1)
+  else:
+    color_arr = np.random.rand(*size, img.shape[-1] if len(img.shape) > 2 else 1)
+  color_arr = (color_arr * 255.0).astype('int')
+
+  # FEAT: add offset to the border of the image (positive and negative)
+
+  # check if only move
+  if pad_split[0] == 'move':
+    # check if size is at end
+    scale = [1, 1]
+    if size[0] < img.size[0] or size[1] < img.size[1]:
+      img, scale = _resize(img, size)
+    # update the final image
+    img = _pad(img, color_arr, pad_split[1])
+
+    return img, scale
+
+  if pad_split[0] == 'fit':
+    # find most relevant side to use
+    img, scale = _resize(img, size)
+    # update the final image
+    img = _pad(img, color_arr, pad_split[1])
+
+    return img, scale
+
+  raise ValueError("resize mode ({}) not found!".format(pad_split[0]))
 
 ########################################################################################################################
 

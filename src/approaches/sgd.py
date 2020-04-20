@@ -78,10 +78,12 @@ class Appr(object):
 
         # Loop batches
         for i in range(0,len(r),self.sbatch):
+            # TODO: integrate curriculum checking here
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
-            images=torch.autograd.Variable(x[b],volatile=False)
-            targets=torch.autograd.Variable(y[b],volatile=False)
+            with torch.no_grad():
+                images=torch.autograd.Variable(x[b])
+                targets=torch.autograd.Variable(y[b])
 
             # Forward
             outputs=self.model.forward(images)

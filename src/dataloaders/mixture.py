@@ -1,6 +1,7 @@
 import os,sys
 import os.path
 import numpy as np
+import pandas as pd
 import torch
 import torch.utils.data
 from torchvision import datasets,transforms
@@ -92,8 +93,8 @@ def _load_traffic_signs():
     return _load_dataset(TrafficSigns, tfs, "traffic_signs", 43)
 
 def _load_cub200():
-    mean=[0.3398,0.3117,0.3210]
-    std=[0.2755,0.2647,0.2712]
+    mean=[x/255 for x in [90.6379,93.2626,80.7344]]
+    std=[x/255 for x in [71.4966,71.0943,72.5651]]
     tfs = lambda: transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean,std)])
     
     return _load_dataset(Cub200, tfs, "cub200", 200)
@@ -106,15 +107,17 @@ def _load_facescrub():
     return _load_dataset(Facescrub, tfs, "facescrub", 100)
 
 
-def get(seed=0,fixed_order=False,pc_valid=0.15):
+def get(seed=0,fixed_order=False,pc_valid=0.15,num_data=8,sample=False):
     data={}
     taskcla=[]
     # output size for training (channels first)
     # TODO: update resize options
     size=[3,32,32]
 
-    # use 8 datasets
-    idata=np.arange(8)
+    # create dataset list
+    idata=np.arange(num_data)
+    if sample is True:
+        idata = np.random.choice(np.arange(9), num_data, replace=False)
     # TODO: update dataset collection
     # shuffle if activated
     if not fixed_order:
@@ -166,6 +169,8 @@ def get(seed=0,fixed_order=False,pc_valid=0.15):
                 print('ERROR: Undefined data set',n)
                 sys.exit()
             #print(n,data[n]['name'],data[n]['ncla'],len(data[n]['train']['x']))
+
+            # TODO: apply complexity before saving (for easier filter later on)
 
             # "Unify" and save
             for s in ['train','test']:
@@ -530,17 +535,108 @@ class notMNIST(torch.utils.data.Dataset):
 ########################################################################################################################
 
 class Cub200(torch.utils.data.Dataset):
-    # TODO: implement the data loading here
+    '''Loads the CUB200-2011 Dataset.
+
+    Reference: Wah C., Branson S., Welinder P., Perona P., Belongie S. “The Caltech-UCSD Birds-200-2011 Dataset.” Computation & Neural Systems Technical Report, CNS-TR-2011-001.
+    '''
     def __init__(self, root, train=True,transform=None, download=False):
-        pass
+        self.root = os.path.expanduser(root)
+        self.transform = transform
+        self.filename = "CUB_200_2011.tgz"
+        self.url = "http://www.vision.caltech.edu/visipedia-data/CUB-200-2011/CUB_200_2011.tgz"
+
+        fpath = os.path.join(root, self.filename)
+        if not os.path.isfile(fpath):
+            if not download:
+               raise RuntimeError('Dataset not found. You can use download=True to download it')
+            else:
+                print('Downloading from '+self.url)
+                self.download()
+        
+        # load the data information
+        root = os.path.join(root, 'CUB_200_2011')
+        train_test = pd.read_csv(os.path.join(root, "train_test_split.txt"), sep=' ', header=None, names=['id', 'is_train'])
+        images = pd.read_csv(os.path.join(root, "images.txt"), sep=' ', header=None, names=['id', 'path'])
+        cls_label = pd.read_csv(os.path.join(root, "image_class_labels.txt"), sep=' ', header=None, names=['id', 'class_id'])
+        cls_names = pd.read_csv(os.path.join(root, "classes.txt"), sep=' ', header=None, names=['class_id', 'class_name'])
+
+        # merge the data
+        min_cid = np.min(cls_names['class_id'])
+        cls_label['class_id'] = cls_label['class_id'] - min_cid
+        cls_names['class_id'] = cls_names['class_id'] - min_cid
+        df_images = pd.merge(train_test, images, on='id')
+        df_images = pd.merge(df_images, cls_label, on='id')
+        num_classes = len(cls_names.index)
+        cid = np.array(cls_names['class_id'])
+
+        # shuffle the dataset
+        # TODO: updated random state?
+        df_images = df_images.sample(frac=1, random_state=123)
+
+        # select the correct data
+        if train is True:
+            df_images = df_images[df_images['is_train'] == 1]
+        else:
+            df_images = df_images[df_images['is_train'] == 0]
+        
+        # load into data
+        tmp_data = []
+        tmp_lbls = []
+        for idx, row in df_images.iterrows():
+            # load the image and label
+            img = Image.open(os.path.join(root, 'images', row['path'])).convert("RGB")
+            cla = row['class_id']
+            
+            # resize the image to common input
+            img, scale = utils.resize_and_pad(img, (32, 32), 'fit_center')
+            
+            # append data
+            tmp_data.append(np.array(img).astype('float'))
+            tmp_lbls.append(cla)
+        
+        # combine data
+        self.data = np.stack(tmp_data, axis=0)
+        self.labels = np.stack(tmp_lbls, axis=0)
+
+        # convert to channels first
+        self.data = np.transpose(self.data, (0, 3, 1, 2))
 
     def __getitem__(self, index):
-        pass
+        """
+        Args: index (int): Index
+        Returns: tuple: (image, target) where target is index of the target class.
+        """
+        img, target = self.data[index], self.labels[index]
+
+        # doing this so that it is consistent with all other datasets
+        # to return a PIL Image
+        img = Image.fromarray(np.transpose(img, (1, 2, 0)))
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        return img, target
 
     def __len__(self):
-        pass
+        return len(self.data)
 
     def download(self):
-        pass
+        import errno
+        root = os.path.expanduser(self.root)
+        fpath = os.path.join(root, self.filename)
+
+        try:
+            os.makedirs(root)
+        except OSError as e:
+            if e.errno == errno.EEXIST:
+                pass
+            else:
+                raise
+        urllib.request.urlretrieve(self.url, fpath)
+        import tarfile
+        tar_ref = tarfile.open(fpath, 'r:gz')
+        tar_ref.extractall(root)
+        tar_ref.close()
+        # CHECK: check if zip needs to be extracted
 
 ########################################################################################################################

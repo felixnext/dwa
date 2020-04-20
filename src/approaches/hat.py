@@ -110,9 +110,10 @@ class Appr(object):
         for i in range(0,len(r),self.sbatch):
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
-            images=torch.autograd.Variable(x[b],volatile=False)
-            targets=torch.autograd.Variable(y[b],volatile=False)
-            task=torch.autograd.Variable(torch.LongTensor([t]).cuda(),volatile=False)
+            with torch.no_grad():
+                images=torch.autograd.Variable(x[b])
+                targets=torch.autograd.Variable(y[b])
+                task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
             s=(self.smax-1/self.smax)*i/len(r)+1/self.smax
 
             # Forward
@@ -135,6 +136,7 @@ class Appr(object):
                 if n.startswith('e'):
                     num=torch.cosh(torch.clamp(s*p.data,-thres_cosh,thres_cosh))+1
                     den=torch.cosh(p.data)+1
+                    # update the gradient data here
                     p.grad.data*=self.smax/s*num/den
 
             # Apply step
