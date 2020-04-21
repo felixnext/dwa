@@ -3,11 +3,10 @@ import numpy as np
 import torch
 
 import utils
+from .approach import BaseApproach
 
-class Appr(object):
+class Appr(BaseApproach):
     # TODO: implement approach
 
     def __init__(self):
         pass
-
-    def 
