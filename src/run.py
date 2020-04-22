@@ -113,7 +113,7 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **
     utils.print_model_report(net)
 
     # setup the approach
-    appr=appr.Appr(net,nepochs=nepochs,lr=lr,**args)
+    appr=appr.Appr(net,nepochs=nepochs,lr=lr,**parameters)
     print(appr.criterion)
     utils.print_optimizer_config(appr.optimizer)
     print('-'*100)

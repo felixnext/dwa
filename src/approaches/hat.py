@@ -10,16 +10,16 @@ from .approach import BaseApproach
 class Appr(BaseApproach):
 
     def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,lamb=0.75,smax=400,thres_cosh=50,thres_emb=6):
-        super(self, Appr).__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad)
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad)
 
         print("Setting Parameters to:\n\tlamba: {}\n\tsmax: {}".format(lamb, smax))
         self.lamb=lamb          # Grid search = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2.5, 4]; chosen was 0.75
         self.smax=smax          # Grid search = [25, 50, 100, 200, 400, 800]; chosen was 400
+        self.thres_cosh=thres_cosh
+        self.thres_emb=thres_emb
 
         self.mask_pre=None
         self.mask_back=None
-        self.thres_cosh=thres_cosh
-        self.thres_emb=thres_emb
 
         return
 
@@ -28,7 +28,7 @@ class Appr(BaseApproach):
         if lr is None: lr=self.lr
         return torch.optim.SGD(self.model.parameters(),lr=lr)
 
-    def post_train(self, t):
+    def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
         # Activations mask
         task=torch.autograd.Variable(torch.LongTensor([t]).cuda(),volatile=False)
         mask=self.model.mask(task,s=self.smax)
@@ -49,10 +49,7 @@ class Appr(BaseApproach):
 
         return
 
-    # TODO: externalize thresholds
-    def train_batch(self,t,i,x,y,r):
-        if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
-        else: b=r[i:]
+    def train_batch(self,t,i,x,y,b,r):
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
@@ -62,7 +59,7 @@ class Appr(BaseApproach):
         # Forward
         outputs,masks=self.model.forward(task,images,s=s)
         output=outputs[t]
-        loss,_=self.criterion(output,targets,masks)
+        loss,_=self.hat_criterion(output,targets,masks)
 
         # Backward
         self.optimizer.zero_grad()
@@ -97,7 +94,7 @@ class Appr(BaseApproach):
 
         return
 
-    def eval_batch(self,b,t,x,y, items):
+    def eval_batch(self,b,t,x,y,items):
         if "reg" not in items:
             items["reg"] = 0
         with torch.no_grad():
@@ -108,7 +105,7 @@ class Appr(BaseApproach):
         # Forward
         outputs,masks=self.model.forward(task,images,s=self.smax)
         output=outputs[t]
-        loss,reg=self.criterion(output,targets,masks)
+        loss,reg=self.hat_criterion(output,targets,masks)
         _,pred=output.max(1)
         hits=(pred==targets).float()
 
@@ -119,7 +116,7 @@ class Appr(BaseApproach):
 
         return items
 
-    def criterion(self,outputs,targets,masks):
+    def hat_criterion(self,outputs,targets,masks):
         reg=0
         count=0
         if self.mask_pre is not None:
@@ -132,6 +129,6 @@ class Appr(BaseApproach):
                 reg+=m.sum()
                 count+=np.prod(m.size()).item()
         reg/=count
-        return self.ce(outputs,targets)+self.lamb*reg,reg
+        return self.criterion(outputs,targets)+self.lamb*reg,reg
 
 ########################################################################################################################

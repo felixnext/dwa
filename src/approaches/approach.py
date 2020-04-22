@@ -5,6 +5,18 @@ import torch
 import utils
 
 class BaseApproach(object):
+    '''Abstract Baseclass for an approach toward multi-task learning
+
+    Args:
+        model (Net): Model to be loaded
+        nepochs (int): Number of epochs to train
+        sbatch (int): Batch Size
+        lr (float): Learning Rate for the approach
+        lr_min (float): Minimal allowed learningrate
+        lr_factor (float): Factor by which the learning rate will be reduced if loss does not change
+        lr_patience (int): Epochs to wait before reducing learning rate
+        clipgrad (int): ??
+    '''
 
     def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000):
         self.model=model
@@ -78,7 +90,7 @@ class BaseApproach(object):
         # Restore best
         utils.set_model_(self.model,best_model)
 
-        self.post_train(t)
+        self.post_train(t,xtrain,ytrain,xvalid,yvalid)
 
         return
 
@@ -93,14 +105,19 @@ class BaseApproach(object):
         for i in range(0,len(r),self.sbatch):
             # TODO: check for curriculum
             x, y = self.apply_curriculum(i, x, y)
-            self.train_batch(t, i, x, y, r)
+            
+            if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
+            else: b=r[i:]
+            self.train_batch(t, i, x, y, b,r)
 
         return
     
-    def train_batch(self, t, i, x, y, r):
+    def train_batch(self, t, i, x, y, b,r):
+        '''Code to train a single batch.'''
         raise NotImplementedError()
     
     def apply_curriculum(self, i, x, y):
+        '''Code to apply curriculum learning (if enabled).'''
         return x, y
 
     def eval(self,t,x,y):
@@ -116,7 +133,7 @@ class BaseApproach(object):
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
 
-            total_items = self.eval_epoch(b, t, x, y, total_items)
+            total_items = self.eval_batch(b, t, x, y, total_items)
             total_num += len(b)
         
         # print everything not acc and loss
@@ -127,7 +144,8 @@ class BaseApproach(object):
 
         return total_items["loss"]/total_num,total_items["acc"]/total_num
     
-    def eval_epoch(self, b, t, x, y, items={}):
+    def eval_batch(self, b, t, x, y, items={}):
+        '''Eval code for a single batch.'''
         # avoid gradient on this
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
@@ -147,5 +165,6 @@ class BaseApproach(object):
 
         return items
     
-    def post_train(self, t):
-        raise NotImplementedError()
+    def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
+        '''Code executed after successfully training a task.'''
+        return

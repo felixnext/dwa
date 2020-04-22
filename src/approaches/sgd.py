@@ -8,15 +8,13 @@ from .approach import BaseApproach
 class Appr(BaseApproach):
 
     def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000):
-        super(self, Appr).__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad)
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad)
 
     def _get_optimizer(self,lr=None):
         if lr is None: lr=self.lr
         return torch.optim.SGD(self.model.parameters(),lr=lr)
 
-    def train_batch(self,t,i,x,y,r):
-        if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
-        else: b=r[i:]
+    def train_batch(self,t,i,x,y,b,r):
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
