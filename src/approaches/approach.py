@@ -15,7 +15,7 @@ class BaseApproach(object):
         lr_min (float): Minimal allowed learningrate
         lr_factor (float): Factor by which the learning rate will be reduced if loss does not change
         lr_patience (int): Epochs to wait before reducing learning rate
-        clipgrad (int): ??
+        clipgrad (int): value at which gradients are clipped to avoid explosion
     '''
 
     def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000):

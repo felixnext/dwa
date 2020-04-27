@@ -182,18 +182,23 @@ def fisher_matrix_diag(t,x,y,model,criterion,sbatch=20):
     # Init
     fisher={}
     for n,p in model.named_parameters():
-        fisher[n]=0*p.data
+        fisher[n] = torch.zeros_like(p.data)
+        #fisher[n]=0*p.data      # multiply to get the right format and dtype?
     # Compute
-    model.train()
+    model.train()   # set the model in training mode
     for i in tqdm(range(0,x.size(0),sbatch),desc='Fisher diagonal',ncols=100,ascii=True):
+        # go through all batches
         b=torch.LongTensor(np.arange(i,np.min([i+sbatch,x.size(0)]))).cuda()
-        images=torch.autograd.Variable(x[b],volatile=False)
-        target=torch.autograd.Variable(y[b],volatile=False)
-        # Forward and backward
+        with torch.no_grad:
+            images=torch.autograd.Variable(x[b])
+            target=torch.autograd.Variable(y[b])
+
+        # Forward and backward (clear gradients and compute new ones)
         model.zero_grad()
         outputs=model.forward(images)
         loss=criterion(t,outputs[t],target)
         loss.backward()
+
         # Get gradients
         for n,p in model.named_parameters():
             if p.grad is not None:

@@ -28,33 +28,15 @@ class Appr(BaseApproach):
         if lr is None: lr=self.lr
         return torch.optim.SGD(self.model.parameters(),lr=lr)
 
-    def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
-        # Activations mask
-        task=torch.autograd.Variable(torch.LongTensor([t]).cuda(),volatile=False)
-        mask=self.model.mask(task,s=self.smax)
-        for i in range(len(mask)):
-            mask[i]=torch.autograd.Variable(mask[i].data.clone(),requires_grad=False)
-        if t==0:
-            self.mask_pre=mask
-        else:
-            for i in range(len(self.mask_pre)):
-                self.mask_pre[i]=torch.max(self.mask_pre[i],mask[i])
-
-        # Weights mask
-        self.mask_back={}
-        for n,_ in self.model.named_parameters():
-            vals=self.model.get_view_for(n,self.mask_pre)
-            if vals is not None:
-                self.mask_back[n]=1-vals
-
-        return
-
     def train_batch(self,t,i,x,y,b,r):
+        # retrieve relevant data
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
             task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
-        s=(self.smax-1/self.smax)*i/len(r)+1/self.smax
+        
+        # annealing value for the gate impact (used to reduce learning impact - i.e. reduce embedding layer plasticty over time)
+        s = (self.smax - 1/self.smax)*i/len(r)+1/self.smax
 
         # Forward
         outputs,masks=self.model.forward(task,images,s=s)
@@ -83,7 +65,7 @@ class Appr(BaseApproach):
         torch.nn.utils.clip_grad_norm_(self.model.parameters(),self.clipgrad)
         self.optimizer.step()
 
-        # Constrain embeddings
+        # Constrain embeddings (to avoid dead cells?)
         for n,p in self.model.named_parameters():
             if n.startswith('e'):
                 p.data=torch.clamp(p.data,-self.thres_emb,self.thres_emb)
@@ -121,6 +103,7 @@ class Appr(BaseApproach):
         count=0
         if self.mask_pre is not None:
             for m,mp in zip(masks,self.mask_pre):
+                # NOTE: all mask outputs (and therefore also mp) are sigmoid outputs
                 aux=1-mp
                 reg+=(m*aux).sum()
                 count+=aux.sum()
@@ -129,6 +112,31 @@ class Appr(BaseApproach):
                 reg+=m.sum()
                 count+=np.prod(m.size()).item()
         reg/=count
+        # NOTE: regularizaiton itself is outputted for logging purposes?
         return self.criterion(outputs,targets)+self.lamb*reg,reg
+
+    def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
+        # Activations mask (explicitly compute and avoid gradient)
+        task=torch.autograd.Variable(torch.LongTensor([t]).cuda(),volatile=False)
+        mask=self.model.mask(task,s=self.smax)
+        for i in range(len(mask)):
+            mask[i]=torch.autograd.Variable(mask[i].data.clone(),requires_grad=False)
+        
+        # update stored masks according to task
+        if t==0:
+            self.mask_pre=mask
+        else:
+            # combine masks based on max (to update coverage of mask)
+            for i in range(len(self.mask_pre)):
+                self.mask_pre[i]=torch.max(self.mask_pre[i],mask[i])
+
+        # Weights mask
+        self.mask_back={}
+        for n,_ in self.model.named_parameters():
+            vals=self.model.get_view_for(n,self.mask_pre)
+            if vals is not None:
+                self.mask_back[n]=1-vals
+
+        return
 
 ########################################################################################################################

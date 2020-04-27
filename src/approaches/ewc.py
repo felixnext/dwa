@@ -23,26 +23,6 @@ class Appr(BaseApproach):
         if lr is None: lr = self.lr
         return torch.optim.SGD(self.model.parameters(),lr=lr)
 
-    def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
-        # Update old
-        self.model_old=deepcopy(self.model)
-        self.model_old.eval()
-        utils.freeze_model(self.model_old) # Freeze the weights
-
-        # Fisher ops
-        if t>0:
-            fisher_old={}
-            for n,_ in self.model.named_parameters():
-                fisher_old[n]=self.fisher[n].clone()
-        self.fisher=utils.fisher_matrix_diag(t,xtrain,ytrain,self.model,self.ewc_criterion)
-        if t>0:
-            # Watch out! We do not want to keep t models (or fisher diagonals) in memory, therefore we have to merge fisher diagonals
-            for n,_ in self.model.named_parameters():
-                self.fisher[n]=(self.fisher[n]+fisher_old[n]*t)/(t+1)       # Checked: it is better than the other option
-                #self.fisher[n]=0.5*(self.fisher[n]+fisher_old[n])
-
-        return
-
     def train_batch(self,t,i,x,y,b,r):
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
@@ -51,13 +31,14 @@ class Appr(BaseApproach):
         # Forward current model
         outputs=self.model.forward(images)
         output=outputs[t]
+        # ewc criterion acts as regularization applied to all weights
         loss=self.ewc_criterion(t,output,targets)
 
         # Backward
-        self.optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(),self.clipgrad)
-        self.optimizer.step()
+        self.optimizer.zero_grad()  # clear old gradients
+        loss.backward()     # compute gradients from current step
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(),self.clipgrad)   # avoid too high gradients
+        self.optimizer.step()   # take an optimizer step (according to internal learning rate)
 
         return
 
@@ -83,8 +64,38 @@ class Appr(BaseApproach):
         # Regularization for all previous tasks
         loss_reg=0
         if t>0:
+            # for all parameter matched over from the previous model
             for (name,param),(_,param_old) in zip(self.model.named_parameters(),self.model_old.named_parameters()):
-                loss_reg+=torch.sum(self.fisher[name]*(param_old-param).pow(2))/2
+                # add the parameter change regulation to the regularization
+                loss_reg+=torch.sum(self.fisher[name]*(param_old-param).pow(2))/2   # default EWC formula
 
         return self.criterion(output,targets)+self.lamb*loss_reg
 
+    def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
+        # store the old model (and freeze it for gradients)
+        self.model_old=deepcopy(self.model) 
+        self.model_old.eval()
+        utils.freeze_model(self.model_old) # Freeze the weights
+
+        # NOTE: other option is to save models to disk and reload them after each training session (slower but more accurate?)
+
+        # deep copy the values from the old fisher matrix (previous models)
+        if t>0:
+            fisher_old={}
+            for n,_ in self.model.named_parameters():
+                fisher_old[n]=self.fisher[n].clone()
+        
+        # compute the fisher matrix for the current model
+        # NOTE: shouldn't it be recomputed for all outputs?
+        self.fisher=utils.fisher_matrix_diag(t,xtrain,ytrain,self.model,self.ewc_criterion)
+
+        # combine the fisher matrices
+        if t>0:
+            # Watch out! We do not want to keep t models (or fisher diagonals) in memory, therefore we have to merge fisher diagonals
+            # NOTE: is that equivalent?
+            for n,_ in self.model.named_parameters():
+                # count the old fisher matrix t times for the number of pervious tasks
+                self.fisher[n]=(self.fisher[n]+fisher_old[n]*t)/(t+1)       # Checked: it is better than the other option
+                #self.fisher[n]=0.5*(self.fisher[n]+fisher_old[n])
+
+        return
