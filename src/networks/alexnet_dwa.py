@@ -28,7 +28,7 @@ class Net(torch.nn.Module):
         use_combination (bool): Defines if the attention mask should be computed through a combination of layers to save weights
     '''
 
-    def __init__(self,inputsize,taskcla, use_processor=True, processor_feats=(10, 32), emb_size=None, use_stem=None, use_concat=False, use_combination=True):
+    def __init__(self,inputsize,taskcla, use_processor=True, processor_feats=(10, 32), emb_size=None, use_stem=None, use_concat=False, use_combination=True, use_dropout=False):
         super(Net,self).__init__()
 
         # safty checks
@@ -37,27 +37,33 @@ class Net(torch.nn.Module):
 
         # set internal values
         ncha, size, _ = inputsize
-        self.taskcla=taskcla
-        self.use_stem = use_stem
-        self.use_processor = use_processor
-        self.is_linear_processor = use_stem > 2
-        self.use_combination = use_combination
-        self.use_concat = use_concat
+        self.taskcla=taskcla                        # contains tasks with number of classes
+        self.use_stem = use_stem                    # defines the number of stem layers to use (or None for none)
+        self.use_processor = use_processor          # defines if the pre-processor should be applied (or simply use task embeddings)
+        self.is_linear_processor = False if use_stem is None else use_stem > 2
+        self.use_combination = use_combination      # defines if attention masks should be generated through combination (to save weights)
+        self.use_concat = use_concat                # defines if input to the pre-processor should be concated
+        self.use_dropout = use_dropout
         self.emb_size = len(taskcla) if emb_size is None or use_processor is False else emb_size
 
         # create all relevant convolutions (either native as stem or dwa masked)
-        self.processor_size = inputsize
-        self.c1,s,self.processor_size = self._create_conv(ncha, 64, size//8, size, 0, use_stem, self.processor_size)
-        self.c2,s,self.processor_size = self._create_conv(64, 128, size//10, s, 1, use_stem, self.processor_size)
-        self.c3,s,self.processor_size = self._create_conv(128, 256, 2, s, 2, use_stem, self.processor_size)
+        self.mask_layers = torch.nn.ModuleList()
+        self.c1,s,psize1 = self._create_conv(ncha, 64,  size//8,  size, 0, use_stem, inputsize)
+        self.c2,s,psize2 = self._create_conv(64,   128, size//10, s,    1, use_stem, psize1)
+        self.c3,s,psize3 = self._create_conv(128,  256, 2,        s,    2, use_stem, psize2)
         self.smid=s
         self.maxpool=torch.nn.MaxPool2d(2)
         self.relu=torch.nn.ReLU()
 
-        self.drop1=torch.nn.Dropout(0.2)
-        self.drop2=torch.nn.Dropout(0.5)
-        self.fc1,self.processor_size = self._create_linear(256*self.smid*self.smid,2048, 3, use_stem, self.processor_size)
-        self.fc2,self.processor_size = self._create_linear(2048,2048, 4, use_stem, self.processor_size)
+        # check if dropout sould be added or skipped (through identity)
+        if use_dropout is True:
+            self.drop1=torch.nn.Dropout(0.2)
+            self.drop2=torch.nn.Dropout(0.5)
+        else:
+            self.drop1 = torch.nn.Identity()
+            self.drop2 = torch.nn.Identity()
+        self.fc1,psize4 = self._create_linear(256*self.smid*self.smid, 2048, 3, use_stem, psize3)
+        self.fc2,psize5 = self._create_linear(2048,                    2048, 4, use_stem, psize4)
 
         # generate task processor
         # all context processor stuff should start with 'p'
@@ -65,17 +71,28 @@ class Net(torch.nn.Module):
         if use_processor is True:
             # params
             f_bn, f_out = processor_feats
+
+            # define the processor input
+            if use_concat is True and use_stem is not None:
+                # provide resize options for up to psize-stem
+                # TODO: implement concat
+                self.processor_size = None
+                pass
+            else:
+                self.processor_size = psize5
             
             # adjust layers if input from FC
             if self.is_linear_processor:
                 self.pfc1 = torch.nn.Linear(self.processor_size, f_bn)
                 self.pfc2 = torch.nn.Linear(f_bn, f_out)
                 self.pfc3 = torch.nn.Linear(f_out, self.emb_size)
+                #self.pfc3 = torch.nn.Embedding(100 * len(taskcla), self.emb_size)
             else:
                 self.pc1 = torch.nn.Conv2d(self.processor_size[0], f_bn, (1,1), (1,1), 0)
                 self.pc2 = torch.nn.Conv2d(f_bn, f_out, (3,3), (2,2), 2)
                 pin = self.cin//2
                 self.pfc1 = torch.nn.Linear(cin*cin*f_out, self.emb_size)
+                #self.pfc1 = torch.nn.Embedding(100 * len(taskcla), self.emb_size)
 
         # generate all possible heads (and put them in list - list is needed for torch to properly detect layers)
         self.last=torch.nn.ModuleList()
@@ -84,23 +101,6 @@ class Net(torch.nn.Module):
 
         # gates for this approach
         self.gate=torch.nn.Sigmoid()
-
-        # All embedding stuff should start with 'e'
-        # NOTE: the size of the outputs is oriented at the kernel size
-        # input is the task id (one-hot) for each embedding layer
-        self.ec1=torch.nn.Embedding(len(self.taskcla),64)
-        self.ec2=torch.nn.Embedding(len(self.taskcla),128)
-        self.ec3=torch.nn.Embedding(len(self.taskcla),256)
-        self.efc1=torch.nn.Embedding(len(self.taskcla),2048)
-        self.efc2=torch.nn.Embedding(len(self.taskcla),2048)
-        """ (e.g., used in the compression experiments)
-        lo,hi=0,2
-        self.ec1.weight.data.uniform_(lo,hi)
-        self.ec2.weight.data.uniform_(lo,hi)
-        self.ec3.weight.data.uniform_(lo,hi)
-        self.efc1.weight.data.uniform_(lo,hi)
-        self.efc2.weight.data.uniform_(lo,hi)
-        #"""
 
         return
     
@@ -111,7 +111,7 @@ class Net(torch.nn.Module):
         s=s//2
 
         # update conv
-        if pos <= stem:
+        if stem is not None and pos <= stem:
             conv=torch.nn.Conv2d(fin,fout,kernel_size=ksize)
             psize = (fout, s, s)
             return conv,s,psize
@@ -122,7 +122,7 @@ class Net(torch.nn.Module):
     
     def _create_linear(self, fin, fout, pos, stem, psize):
         '''Decides whether to create a regular or weight masked linear layer.'''
-        if pos <= stem:
+        if stem is not None and pos <= stem:
             fc = torch.nn.Linear(fin,fout)
             psize = (fout,)
             return fc, psize
@@ -138,37 +138,69 @@ class Net(torch.nn.Module):
             t (int): Current task
             x (float): input images
         '''
+        # define the order of the layers
+        conv_list = [(self.c1, self.drop1), (self.c2, self.drop1), (self.c3, self.drop2)]
+        linear_list = [(self.fc1, self.drop2), (self.fc2, self.drop2)]
+
         # define input for the context processor
+        h = x
         p = x
-        # TODO: iterate through stem
-        # TODO: check for concat (adjust size of input?)
-        p = torch.cat(p, h) if self.use_concat else h
+
+        # iterate through stem layers
+        if self.use_stem is not None:
+            for i in range(self.use_stem):   # FIX: might use +1?
+                # execute conversion to linear
+                if i == len(conv_list):
+                    h = h.view(x.size(0),-1)
+                    # update previous values (in case of concat)
+                    if self.use_concat is True:
+                        p = p.view(x.size(0), -1)
+
+                # check if linear of conv
+                if i >= len(conv_list):
+                    j = i - len(conv_list)
+                    # linear operations (linear -> relu -> dropout)
+                    h = linear_list[j][1](self.relu(linear_list[j][0](h)))
+                    # TODO: implement concat
+                else:
+                    # conv operations (conv -> relu -> dropout -> maxpooling)
+                    h = self.maxpool(conv_list[i][1](self.relu(conv_list[i][0](h))))
+                    # TODO: implement concat (use max-pool to adjust size?)
+                
+                # update in case of non-concat
+                if self.use_concat is False:
+                    p = h
+
         # generate the embedding based on input
-        emb = self.processor(x) if self.use_processor else t
+        emb = self.processor(p) if self.use_processor else t
 
         # compute the kernel masks
         masks=self.mask(emb)
-        gc1,gc2,gc3,gfc1,gfc2=masks
 
-        layer_list = [(self.c1, self.drop1), (self.c2, self.drop1), (self.c3, self.drop2)]
+        # iterate through the remaining layers (and apply masks)
+        offset = 0 if self.use_stem is None else self.use_stem
+        for rid in range(len(conv_list) + len(linear_list) - offset):
+            tid = rid + offset
+            mask = masks[rid]
 
-        # Gated (apply gates after each layer to control gradient flow)
-        h=self.maxpool(self.drop1(self.relu(self.c1(x))))
-        h=h*gc1.view(1,-1,1,1).expand_as(h)
-        h=self.maxpool(self.drop1(self.relu(self.c2(h))))
-        h=h*gc2.view(1,-1,1,1).expand_as(h)
-        h=self.maxpool(self.drop2(self.relu(self.c3(h))))
-        h=h*gc3.view(1,-1,1,1).expand_as(h)
-        h=h.view(x.size(0),-1)
-        h=self.drop2(self.relu(self.fc1(h)))
-        h=h*gfc1.expand_as(h)
-        h=self.drop2(self.relu(self.fc2(h)))
-        h=h*gfc2.expand_as(h)
+            # check for conversion
+            if tid == len(conv_list):
+                h = h.view(x.size(0),-1)
+            
+            # check for linear or conv
+            if tid >= len(conv_list):
+                j = tid - len(conv_list)
+                # linear operations (linear_dwa -> relu -> dropout)
+                h = linear_list[j][1](self.relu(linear_list[j][0](h, mask)))
+            else:
+                # conv operations (conv_dwa -> relu -> dropout -> maxpooling)
+                h = self.maxpool(conv_list[tid][1](self.relu(conv_list[tid][0](h, mask))))
 
         # generate list of outputs from each head
         y=[]
         for i,_ in self.taskcla:
             y.append(self.last[i](h))
+
         return y,emb,masks
     
     def processor(self, x):
@@ -186,14 +218,16 @@ class Net(torch.nn.Module):
         return emb
 
     def mask(self,emb):
-        # TODO: adjust the kernel size?
-        mc1 = self.gate(self.ec1(emb).view(emb.size(0), 3, 3, 32))
-        gc1=self.gate(s*self.ec1(t))
-        gc2=self.gate(s*self.ec2(t))
-        gc3=self.gate(s*self.ec3(t))
-        gfc1=self.gate(s*self.efc1(t))
-        gfc2=self.gate(s*self.efc2(t))
-        return [gc1,gc2,gc3,gfc1,gfc2]
+        # iterate through all items
+        masks = []
+        for i in range(len(self.mask_layers)):
+            l = self.mask_layers[i]
+            # TODO: generate the
+            mraw = l(emb)
+            # TODO: find the right shape
+            mc = self.gate(mraw.view(emb.size(0), 3, 3, 32))
+            masks.append(mc)
+        return masks
 
     def get_view_for(self,n,masks):
         gc1,gc2,gc3,gfc1,gfc2=masks
