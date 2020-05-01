@@ -1,19 +1,48 @@
 import sys
 import torch
+import torch.nn.functional as F
 import numpy as np
+import functools
 
 import utils
 
 class Conv2d_dwa(torch.nn.Module):
-    '''Conv2d Layer that implements dynamic weight mask.'''
-    # test this: https://discuss.pytorch.org/t/custom-convolution-layer/45979/5
-    # check if mask can be returned as well!
-    # TODO: implement combination approach?
-    pass
+    '''Conv2d Layer that implements dynamic weight mask.
+    
+    Note: this layer is not batched and might be slow - potential for optimization
+    '''
+    def __init__(self, fin, fout, kernel_size, stride=(1,1), padding=(0,0), dilation=(1,1)):
+        super().__init__()
+        # create the weights
+        self.weight = torch.nn.Parameter(torch.Tensor(fout, fin, kernel_size, kernel_size))
+        self.bias = torch.nn.Parameter(torch.Tensor(fout))
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+    
+    def forward(self, x, m):
+        mask_weight = torch.mul(self.weight, m)
+        out = []
+
+        # compute conv for each element in batch
+        for i in range(x.size()[0]):
+            out.append(F.conv2d(x[i:i+1], mask_weight[i, ...], self.bias, self.stride, self.padding, self.dilation))
+
+        return torch.cat(out, dim=0)
 
 class Linear_dwa(torch.nn.Module):
     '''Dense Layer that implements dynamic weight mask.'''
-    pass
+    def __init__(self, fin, fout):
+        super().__init__()
+        # create the weights
+        self.weight = torch.nn.Parameter(torch.Tensor(fout, fin))
+        self.bias = torch.nn.Parameter(torch.Tensor(fout))
+    
+    def forward(self, x, m):
+        # expand the weights for the relevant process
+        mask_weight = torch.mul(self.weight, m).permute(0,2,1)
+        out = torch.einsum("ac,acb->ab",(x, mask_weight)) + self.bias
+        return out
 
 class Net(torch.nn.Module):
     '''Alex-Net inspired variant of the dynamic weight allocation network.
@@ -29,7 +58,7 @@ class Net(torch.nn.Module):
     '''
 
     def __init__(self,inputsize,taskcla, use_processor=True, processor_feats=(10, 32), emb_size=None, use_stem=None, use_concat=False, use_combination=True, use_dropout=False):
-        super(Net,self).__init__()
+        super(Net, self).__init__()
 
         # safty checks
         if use_stem >= 5:
@@ -48,6 +77,7 @@ class Net(torch.nn.Module):
 
         # create all relevant convolutions (either native as stem or dwa masked)
         self.mask_layers = torch.nn.ModuleList()
+        self.mask_shapes = []
         self.c1,s,psize1 = self._create_conv(ncha, 64,  size//8,  size, 0, use_stem, inputsize)
         self.c2,s,psize2 = self._create_conv(64,   128, size//10, s,    1, use_stem, psize1)
         self.c3,s,psize3 = self._create_conv(128,  256, 2,        s,    2, use_stem, psize2)
@@ -71,15 +101,7 @@ class Net(torch.nn.Module):
         if use_processor is True:
             # params
             f_bn, f_out = processor_feats
-
-            # define the processor input
-            if use_concat is True and use_stem is not None:
-                # provide resize options for up to psize-stem
-                # TODO: implement concat
-                self.processor_size = None
-                pass
-            else:
-                self.processor_size = psize5
+            self.processor_size = psize5
             
             # adjust layers if input from FC
             if self.is_linear_processor:
@@ -104,6 +126,28 @@ class Net(torch.nn.Module):
 
         return
     
+    def _create_mask(self, out_size):
+        # compute the actual size
+        self.mask_shapes.append(out_size)
+        flat_shape = np.prod(out_size)
+
+        # generate the layers
+        if self.use_combination is True:
+            sq = np.sqrt(out_size)
+            fac1 = functools.reduce(lambda x, y: y if flat_shape % y == 0 else (x if flat_shape % x == 0 else 1), range(1, int(sq) + 2))
+            fac2 = flat_shape // fac1
+            
+            # generate the layers
+            efc1 = torch.nn.Linear(self.emb_size, fac1)
+            efc2 = torch.nn.Linear(self.emb_size, fac2)
+            mod = torch.nn.ModuleList([efc1, efc2])
+            self.mask_layers.append(mod)
+        else:
+            efc1 = torch.nn.Linear(self.emb_size, flat_shape)
+            self.mask_layers.append(efc1)
+        
+        return
+    
     def _create_conv(self, fin, fout, ksize, s, pos, stem, psize):
         '''Decides whether to create a regular or weight masked convolution.'''
         # compute new kernel size
@@ -113,10 +157,16 @@ class Net(torch.nn.Module):
         # update conv
         if stem is not None and pos <= stem:
             conv=torch.nn.Conv2d(fin,fout,kernel_size=ksize)
-            psize = (fout, s, s)
+
+            if self.use_concat is True:
+                psize = (psize[0] + fout, s, s)
+            else:
+                psize = (fout, s, s)
+
             return conv,s,psize
         else:
-            # TODO: return other items as module list (inspect kernel size?)
+            # create the mask (computed separate)
+            self._create_mask((fout, fin, ksize, ksize))
             conv=Conv2d_dwa(fin,fout,kernel_size=ksize, comb=self.use_combination)
             return conv,s,psize
     
@@ -124,10 +174,16 @@ class Net(torch.nn.Module):
         '''Decides whether to create a regular or weight masked linear layer.'''
         if stem is not None and pos <= stem:
             fc = torch.nn.Linear(fin,fout)
-            psize = (fout,)
+
+            if self.use_concat is True:
+                psize = (sum(psize) + fout,)
+            else:
+                psize = (fout,)
+
             return fc, psize
         else:
-            # TODO: return other items as ModuleList (calc weight size)
+            # create the mask (computed separate)
+            self._create_mask((fout, fin))
             fc = Linear_dwa(fin,fout, comb=self.use_combination)
             return fc, psize
 
@@ -161,11 +217,16 @@ class Net(torch.nn.Module):
                     j = i - len(conv_list)
                     # linear operations (linear -> relu -> dropout)
                     h = linear_list[j][1](self.relu(linear_list[j][0](h)))
-                    # TODO: implement concat
+                    # concat (along last dim)
+                    if self.use_concat is True:
+                        p = torch.cat((p, h), -1)
                 else:
                     # conv operations (conv -> relu -> dropout -> maxpooling)
                     h = self.maxpool(conv_list[i][1](self.relu(conv_list[i][0](h))))
-                    # TODO: implement concat (use max-pool to adjust size?)
+                    # concat (along channel dim which is 1) - apply max pool to adjust size
+                    if self.use_concat is True:
+                        p = self.maxpool(p)
+                        p = torch.cat((p, h), 1)
                 
                 # update in case of non-concat
                 if self.use_concat is False:
@@ -222,10 +283,16 @@ class Net(torch.nn.Module):
         masks = []
         for i in range(len(self.mask_layers)):
             l = self.mask_layers[i]
-            # TODO: generate the
-            mraw = l(emb)
-            # TODO: find the right shape
-            mc = self.gate(mraw.view(emb.size(0), 3, 3, 32))
+
+            # compute the mask
+            if self.use_combination:
+                # NOTE: axis 0 is batch_size (so we do not expand there)
+                mraw = l[0](emb).unsqueeze(1) * l[1](emb).unsqueeze(-1)
+            else:
+                mraw = l(emb)
+            
+            # convert to correct shape and apply gate
+            mc = self.gate(mraw.view(emb.size(0), *self.mask_shapes[i]))
             masks.append(mc)
         return masks
 
