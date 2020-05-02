@@ -178,7 +178,7 @@ def resize_and_pad(img, size, pad_mode, color=None):
 
 ########################################################################################################################
 
-def fisher_matrix_diag(t,x,y,model,criterion,sbatch=20):
+def fisher_matrix_diag(t,x,y,model,fw_pass,sbatch=20):
     # Init
     fisher={}
     for n,p in model.named_parameters():
@@ -189,14 +189,7 @@ def fisher_matrix_diag(t,x,y,model,criterion,sbatch=20):
     for i in tqdm(range(0,x.size(0),sbatch),desc='Fisher diagonal',ncols=100,ascii=True):
         # go through all batches
         b=torch.LongTensor(np.arange(i,np.min([i+sbatch,x.size(0)]))).cuda()
-        with torch.no_grad:
-            images=torch.autograd.Variable(x[b])
-            target=torch.autograd.Variable(y[b])
-
-        # Forward and backward (clear gradients and compute new ones)
-        model.zero_grad()
-        outputs=model.forward(images)
-        loss=criterion(t,outputs[t],target)
+        loss = fw_pass(model,t,b,x,y)
         loss.backward()
 
         # Get gradients
@@ -208,6 +201,81 @@ def fisher_matrix_diag(t,x,y,model,criterion,sbatch=20):
         fisher[n]=fisher[n]/x.size(0)
         fisher[n]=torch.autograd.Variable(fisher[n],requires_grad=False)
     return fisher
+
+########################################################################################################################
+
+def anchor_loss(tensor, pos, neg, task_neg, alpha, delta):
+    # check the shape of the tensors for stacking (bring them to batch size)
+    if len(tensor.shape) > len(pos.shape):
+        ones = [1] * len(pos.shape)
+        pos = pos.repeat(tensor.shape[0], *ones)
+        neg = neg.repeat(tensor.shape[0], *ones)
+        task_neg = task_neg.repeat(tensor.shape[0], *ones)
+
+    # calculate difference
+    p  = torch.sub(tensor, pos).norm(2)
+    n  = torch.sub(tensor, neg).norm(2)
+    tn = torch.sub(tensor, task_neg).norm(2)
+
+    # combine values
+    # TODO: add formula
+    return torch.clamp( ((delta + 1) * p) - n - (delta * tn) + alpha, min=0 )
+
+def sparsity_regularization(mask, sparsity, binary=True):
+    '''Computes the sparsity regularization as percentage of elements non-zero per element in the batch.
+    
+    Args:
+        mask (Tensor): Attention mask tensor of shape [BATCH, WEIGHTMASK] (where WEIGHTMASK is the shape of the weight tensor)
+        sparsity (float): Percentage of target sparsity (e.g. 0.2 relates to 20% target sparisty of masks)
+        binary (bool): Pays only attention to non-zero elements (not gradularity)
+    '''
+    rank = len(mask.shape)
+    dims = list(range(rank))[1:]
+
+    # compute total attention used for each batch element (total sum of active elements per batch)
+    if binary is True:
+        regularization = torch.sum( (mask != 0).type(torch.float32), dim=dims)
+    else:
+        batch = mask.shape[0]
+        abs_mask = torch.abs(mask).view(batch, -1)
+        max_vals,_ = torch.max(abs_mask, dim=1)
+        divs = max_vals.repeat(abs_mask.shape[1], 1).t()
+        regularization = torch.sum( abs_mask / divs, dim=1)
+
+    # ratio to total available elements
+    rate = np.max((mask.shape[1:].numel(), 1.))
+    regularization = torch.div(regularization, rate)
+
+    # check against sparsity constraints and create sum
+    regularization = torch.clamp(regularization - sparsity, min=0)
+    #regularization = torch.sum(torch.max(regularization, dim=0))   # would only count the max activation
+    regularization = torch.sum(regularization)
+    return regularization
+
+def anchor_search(model, t, x, y, prev_anchors, searches=5):
+    # search positive anchor
+    vec = None
+    # TODO: update loop + freeze weights
+    for x, y in b:
+        # retrieve batch data
+        # TODO:
+        # compute the bector
+        _,emb,_ = model.forward()
+
+        # concat
+        vec = emb if vec is None else torch.cat((vec, emb), axis=0)
+    # calc mean
+    pos = torch.mean(vec, dim=0)
+
+    # search negative anchor
+    neg = None
+    task_neg = None
+    for i in tqdm(range(0,searches), desc='Anchor Search',ncols=100,ascii=True):
+        # TODO: integrate that
+        # TODO: negative anchor search
+        pass
+    
+    return pos, neg, task_neg
 
 ########################################################################################################################
 

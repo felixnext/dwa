@@ -101,6 +101,8 @@ class BaseApproach(object):
         np.random.shuffle(r)
         r=torch.LongTensor(r).cuda()
 
+        self.prepare_epoch()
+
         # Loop batches
         for i in range(0,len(r),self.sbatch):
             # TODO: check for curriculum
@@ -110,6 +112,9 @@ class BaseApproach(object):
             else: b=r[i:]
             self.train_batch(t, i, x, y, b,r)
 
+        return
+    
+    def prepare_epoch(self, t, x, y):
         return
     
     def train_batch(self, t, i, x, y, b,r):

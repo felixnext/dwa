@@ -94,6 +94,11 @@ class Net(torch.nn.Module):
             self.drop2 = torch.nn.Identity()
         self.fc1,psize4 = self._create_linear(256*self.smid*self.smid, 2048, 3, use_stem, psize3)
         self.fc2,psize5 = self._create_linear(2048,                    2048, 4, use_stem, psize4)
+        
+        # define the names of the masks
+        self.mask_names = ["c1.weight", "c2.weight", "c3.weight", "fc1.weight", "fc2.weight"]
+        if use_stem is not None:
+            self.mask_names = self.mask_names[use_stem:]
 
         # generate task processor
         # all context processor stuff should start with 'p'
@@ -242,7 +247,7 @@ class Net(torch.nn.Module):
         offset = 0 if self.use_stem is None else self.use_stem
         for rid in range(len(conv_list) + len(linear_list) - offset):
             tid = rid + offset
-            mask = masks[rid]
+            mask, _ = masks[rid]
 
             # check for conversion
             if tid == len(conv_list):
@@ -293,7 +298,8 @@ class Net(torch.nn.Module):
             
             # convert to correct shape and apply gate
             mc = self.gate(mraw.view(emb.size(0), *self.mask_shapes[i]))
-            masks.append(mc)
+            # append the mask name (for fisher id)
+            masks.append((mc, self.mask_names[i]))
         return masks
 
     def get_view_for(self,n,masks):

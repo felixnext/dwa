@@ -70,6 +70,18 @@ class Appr(BaseApproach):
                 loss_reg+=torch.sum(self.fisher[name]*(param_old-param).pow(2))/2   # default EWC formula
 
         return self.criterion(output,targets)+self.lamb*loss_reg
+    
+    def _fw_pass(self, model, t, b, x, y):
+        with torch.no_grad:
+            images=torch.autograd.Variable(x[b])
+            target=torch.autograd.Variable(y[b])
+
+        # Forward and backward (clear gradients and compute new ones)
+        model.zero_grad()
+        outputs=model.forward(images)
+        loss=self.ewc_criterion(t,outputs[t],target)
+
+        return loss
 
     def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
         # store the old model (and freeze it for gradients)
@@ -87,7 +99,7 @@ class Appr(BaseApproach):
         
         # compute the fisher matrix for the current model
         # NOTE: shouldn't it be recomputed for all outputs?
-        self.fisher=utils.fisher_matrix_diag(t,xtrain,ytrain,self.model,self.ewc_criterion)
+        self.fisher=utils.fisher_matrix_diag(t,xtrain,ytrain,self.model,self._fw_pass)
 
         # combine the fisher matrices
         if t>0:

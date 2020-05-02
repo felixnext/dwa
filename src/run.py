@@ -79,11 +79,17 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **
         from approaches import hat as appr
     elif approach=='joint':
         from approaches import joint as appr
+    elif approach=='dwa':
+        from approaches import dwa as appr
 
     # Args -- Network
     if experiment in ['mnist2', 'pmnist']:
         if approach in ['hat', 'hat-test']:
             from networks import mlp_hat as network
+        elif approach == 'dwa':
+            # TODO: implement that?
+            raise NotImplementedError()
+            from networks import mlp_dwa as network
         else:
             from networks import mlp as network
     else:
@@ -97,6 +103,8 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **
             from networks import alexnet_pathnet as network
         elif approach=='hat-test':
             from networks import alexnet_hat_test as network
+        elif approach=='dwa':
+            from networks import alexnet_dwa as network
         else:
             from networks import alexnet as network
 
@@ -109,11 +117,25 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **
 
     # Init the network and put on gpu
     print('Inits...')
-    net=network.Net(inputsize,taskcla).cuda()
+    # handle input parameters for dwa approaches
+    if approach == "dwa":
+        params = {}
+        for key in parameters:
+            if key in ["use_processor", "processor_feats", "emb_size", "use_stem", "use_concat", "use_combination", "use_dropout"]:
+                params[key] = parameters[key]
+        net = network.Net(inputsize, taskcla, **params).cuda()
+    else:
+        net=network.Net(inputsize,taskcla).cuda()
     utils.print_model_report(net)
 
     # setup the approach
-    appr=appr.Appr(net,nepochs=nepochs,lr=lr,**parameters)
+    params = parameters
+    if approach == 'dwa':
+        params = {}
+        for key in parameters:
+            if key in ["sparsity", "bin_sparsity", "alpha", "delta", "lamb", "sbatch", "lr_min", "lr_factor", "lr_patience", "clipgrad"]:
+                params[key] = parameters[key]
+    appr=appr.Appr(net,nepochs=nepochs,lr=lr,**params)
     print(appr.criterion)
     utils.print_optimizer_config(appr.optimizer)
     print('-'*100)
