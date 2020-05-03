@@ -192,7 +192,7 @@ class Net(torch.nn.Module):
             fc = Linear_dwa(fin,fout, comb=self.use_combination)
             return fc, psize
 
-    def forward(self,t,x):
+    def forward(self,t,x,emb=None):
         '''Computes the forward pass of the network.
 
         Args:
@@ -237,8 +237,11 @@ class Net(torch.nn.Module):
                 if self.use_concat is False:
                     p = h
 
-        # generate the embedding based on input
-        emb = self.processor(p) if self.use_processor else t
+        # generate the embedding based on input (avoid if embedding is provided)
+        if emb is None:
+            emb = self.processor(p) if self.use_processor else t
+        elif len(emb.size()) == 1:
+            emb = emb.repeat(x.size()[0], 1)
 
         # compute the kernel masks
         masks=self.mask(emb)

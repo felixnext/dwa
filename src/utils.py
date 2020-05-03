@@ -4,6 +4,9 @@ from copy import deepcopy
 import torch
 from tqdm import tqdm
 from PIL import Image
+# for curriculum
+from skimage.filters.rank import entropy
+from skimage.morphology import disk
 
 ########################################################################################################################
 
@@ -252,30 +255,124 @@ def sparsity_regularization(mask, sparsity, binary=True):
     regularization = torch.sum(regularization)
     return regularization
 
-def anchor_search(model, t, x, y, prev_anchors, searches=5):
+def anchor_search(model, t, x, y, prev_anchors, criterion, searches=5, sbatch=64):
+    '''Searches for the anchors of the respective model using low complexity input.
+    
+    Args:
+        t (Tensor/int): Number of the task
+        x (List): Dataset with low curriculum complexity
+        y (List): Targets for the dataset
+        prev_anchors (List): List of tensors for the previous positive anchors for each task
+        num_searches (int): Number of negative search iterations
+    '''
     # search positive anchor
     vec = None
-    # TODO: update loop + freeze weights
-    for x, y in b:
+
+    # iterate through positive data
+    r=np.arange(x.size(0))
+    r=torch.LongTensor(r).cuda()
+    for i in tqdm(range(0, x.size(0), sbatch), desc='positive anchor search',ncols=100,ascii=True):
         # retrieve batch data
-        # TODO:
+        if i+sbatch<=len(r): b=r[i:i+sbatch]
+        else: b=r[i:]
+        with torch.no_grad():
+            images=torch.autograd.Variable(x[b])
+            targets=torch.autograd.Variable(y[b])
+            task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+            c = 1
+
         # compute the bector
-        _,emb,_ = model.forward()
+        _,emb,_ = model.forward(task, images)
 
         # concat
         vec = emb if vec is None else torch.cat((vec, emb), axis=0)
     # calc mean
     pos = torch.mean(vec, dim=0)
 
+    # create generator
+    def ds_gen():
+        # iterate the dataset
+        r=np.arange(x.size(0))
+        r=torch.LongTensor(r).cuda()
+        for i in range(0, x.size(0), sbatch):
+            # retrieve batch data
+            if i+sbatch<=len(r): b=r[i:i+sbatch]
+            else: b=r[i:]
+            with torch.no_grad():
+                images=torch.autograd.Variable(x[b])
+                targets=torch.autograd.Variable(y[b])
+                task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+            
+            yield images, targets, task
+
     # search negative anchor
     neg = None
+    max_loss = None
+    for i in tqdm(range(0,searches), desc='negative anchor search',ncols=100,ascii=True):
+        # create random vector - orthogonalize to positive and normalize
+        vec = torch.randn(*pos.shape)
+        vec = vec - (vec.dot(pos) * pos)
+        vec = vec / vec.norm(p='fro')
+
+        # iterate through model outputs
+        gen = ds_gen()
+        for images, targets, task in gen():
+            outputs,_,_ = model.forward(task, images, emb=vec)
+            output = outputs[t]
+            loss = criterion(output, targets)
+        
+        # update (find vector position with maximal loss)
+        if max_loss is None or max_loss < loss:
+            max_loss = loss
+            neg = vec
+
+    # search the task negative anchor
     task_neg = None
-    for i in tqdm(range(0,searches), desc='Anchor Search',ncols=100,ascii=True):
-        # TODO: integrate that
-        # TODO: negative anchor search
-        pass
+    max_loss = None
+    for i in tqdm(range(0,len(prev_anchors)), desc='task anchor search',ncols=100,ascii=True):
+        # take vector from previous tasks
+        vec = prev_anchors[i]
+
+        # iterate through model outputs
+        gen = ds_gen()
+        for images, targets, task in gen():
+            outputs,_,_ = model.forward(task, images, emb=vec)
+            output = outputs[t]
+            loss = criterion(output, targets)
+        
+        # update (find vector position with maximal loss)
+        if max_loss is None or max_loss < loss:
+            max_loss = loss
+            task_neg = vec
     
     return pos, neg, task_neg
+
+########################################################################################################################
+
+def compute_curriculum(x, wnd=5, name=None):
+    '''Computes the curriculum complexity for the given dataset.'''
+    # create vars
+    c = torch.ones(x.size()[0])
+    name = 'curriculum computation{}'.format(" ({})".format(name) if name is not None else "")
+
+    # iterate through data
+    for i in tqdm(range(0,x.size()[0]), desc=name,ncols=100,ascii=True):
+        # retrieve the image
+        img = x[i].mean(dim=0)
+        if img.max() > 1.:
+            img = img / 255.
+        
+        # compute complexity
+        c_img = entropy(img, disk(wnd))
+        
+        # set value
+        c[i] = torch.pow(torch.Tensor(c_img), 2).mean()
+
+    # normalize data
+    cmin = c.min()
+    cmax = c.max()
+    c = (c - cmin) / torch.clamp(cmax - cmin, min=0.0001)
+    return c
 
 ########################################################################################################################
 

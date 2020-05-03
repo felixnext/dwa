@@ -28,7 +28,7 @@ class Appr(BaseApproach):
         if lr is None: lr=self.lr
         return torch.optim.SGD(self.model.parameters(),lr=lr)
 
-    def train_batch(self,t,i,x,y,b,r):
+    def train_batch(self,t,i,x,y,c,b,r):
         # retrieve relevant data
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
@@ -76,7 +76,7 @@ class Appr(BaseApproach):
 
         return
 
-    def eval_batch(self,b,t,x,y,items):
+    def eval_batch(self,b,t,x,y,c,items):
         if "reg" not in items:
             items["reg"] = 0
         with torch.no_grad():

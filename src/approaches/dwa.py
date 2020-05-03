@@ -42,6 +42,10 @@ class Appr(BaseApproach):
         self.anchor_pos = None
         self.anchor_task = None
         self.anchor_store = [None] * len(model.taskcla)
+        
+        # some anchor settings
+        self.anchor_thres = 0.4     # complexity threshold for anchor data (not use to high complexity to avoid confusion)
+        self.anchor_batches = 10    # number of batches to use for anchor training
 
         return
 
@@ -50,19 +54,18 @@ class Appr(BaseApproach):
         if lr is None: lr=self.lr
         return torch.optim.SGD(self.model.parameters(),lr=lr)
 
-    def train_batch(self,t,i,x,y,b,r):
-        # TODO: adjust
-        c = 1
+    def train_batch(self,t,i,x,y,c,b,r):
         # retrieve relevant data
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
             task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+            comp = torch.autograd.Variable(c[b])
         
         # compute forward pass
         outputs, emb, masks = self.model.forward(task, images)
         output = outputs[t]
-        loss,_,_,_ = self.dwa_criterion(t, c, output, targets, emb, masks)
+        loss,_,_,_ = self.dwa_criterion(t, comp, output, targets, emb, masks)
 
         # backward pass
         self.optimizer.zero_grad()
@@ -72,23 +75,22 @@ class Appr(BaseApproach):
         
         return
 
-    def eval_batch(self,b,t,x,y,items):
+    def eval_batch(self,b,t,x,y,c,items):
         # set items
         for n in ["triplet_loss", "attention_loss", "sparsity_reg"]:
             items[n] = 0
-        # TODO: adjust
-        c = 1
         
         # load batch
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
             task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+            comp = torch.autograd.Variable(c[b])
         
         # forward pass
         outputs, emb, masks = self.model.forward(task, images)
         output = outputs[t]
-        loss,triplet,att,reg = self.dwa_criterion(t, c, output, targets, emb, masks)
+        loss,triplet,att,reg = self.dwa_criterion(t, comp, output, targets, emb, masks)
         _,pred=output.max(1)
         hits=(pred==targets).float()
 
@@ -121,13 +123,14 @@ class Appr(BaseApproach):
         # return the combined losses
         return loss + self.alpha*triplet + self.lamb*reg, triplet, att, reg
     
-    def prepare_epoch(self, t, x, y):
-        # TODO: filter data on complexity (limit on 0.4)
-        x_lim = None
-        y_lim = None
+    def prepare_epoch(self, t, x, y, c):
+        # filter data on complexity (limit on 0.4)
+        # FEAT: shuffle data?
+        x_lim = x[c < self.anchor_thres][:self.anchor_batches*self.sbatch]
+        y_lim = y[c < self.anchor_thres][:self.anchor_batches*self.sbatch]
         prev_anchors = self.anchor_store[:t]
         # search the anchors (do not explicitly set the number of searches)
-        pos, neg, task_neg = utils.anchor_search(self.model, t, x_lim, y_lim, prev_anchors)
+        pos, neg, task_neg = utils.anchor_search(self.model, t, x_lim, y_lim, prev_anchors, self.criterion, searches=5, sbatch=self.sbatch)
 
         # assign
         self.anchor_pos = pos
