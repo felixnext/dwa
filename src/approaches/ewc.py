@@ -9,8 +9,8 @@ from .approach import BaseApproach
 class Appr(BaseApproach):
     """ Class implementing the Elastic Weight Consolidation approach described in http://arxiv.org/abs/1612.00796 """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=100,lamb=5000):
-        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad)
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=100,curriculum=None,lamb=5000):
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad,curriculum)
         self.model_old=None
         self.fisher=None
 

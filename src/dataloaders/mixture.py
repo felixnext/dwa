@@ -14,9 +14,7 @@ import utils
 ########################################################################################################################
 
 
-def _load_dataset(loader, transforms, name, ncla, size=None, expand_channels=False):
-    mean=[x/255 for x in mean]
-    std=[x/255 for x in std]
+def _load_dataset(dloader, transforms, name, ncla, size=None, expand_channels=False):
     dat={}
     
     # check if resize transform should be applied
@@ -24,8 +22,8 @@ def _load_dataset(loader, transforms, name, ncla, size=None, expand_channels=Fal
         pass
 
     # load the datasets
-    dat['train']=loader('../dat/',train=True,download=True,transform=transforms())
-    dat['test']=loader('../dat/',train=False,download=True,transform=transforms())
+    dat['train']=dloader('../dat/',train=True,download=True,transform=transforms())
+    dat['test']=dloader('../dat/',train=False,download=True,transform=transforms())
     data={}
     data['name']=name
     data['ncla']=ncla
@@ -60,21 +58,21 @@ def _load_mnist():
     #std=(0.3081,)
     mean=(0.1,) # Mean and std including the padding
     std=(0.2752,)
-    tfs = transforms.Compose([transforms.Pad(padding=2,fill=0),transforms.ToTensor(),transforms.Normalize(mean,std)])
+    tfs = lambda: transforms.Compose([transforms.Pad(padding=2,fill=0),transforms.ToTensor(),transforms.Normalize(mean,std)])
 
     return _load_dataset(datasets.MNIST, tfs, "mnist", 10, expand_channels=True)
 
 def _load_fashion_mnist():
     mean=(0.2190,) # Mean and std including the padding
     std=(0.3318,)
-    tfs = transforms.Compose([transforms.Pad(padding=2,fill=0),transforms.ToTensor(),transforms.Normalize(mean,std)])
+    tfs = lambda: transforms.Compose([transforms.Pad(padding=2,fill=0),transforms.ToTensor(),transforms.Normalize(mean,std)])
 
     return _load_dataset(datasets.FashionMNIST, tfs, "fashion_mnist", 10, expand_channels=True)
 
 def _load_not_mnist():
     mean=(0.4254,)
     std=(0.4501,)
-    tfs = transforms.Compose([transforms.Pad(padding=2,fill=0),transforms.ToTensor(),transforms.Normalize(mean,std)])
+    tfs = lambda: transforms.Compose([transforms.Pad(padding=2,fill=0),transforms.ToTensor(),transforms.Normalize(mean,std)])
 
     return _load_dataset(notMNIST, tfs, "not_mnist", 10, expand_channels=True)
 

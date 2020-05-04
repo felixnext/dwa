@@ -16,9 +16,10 @@ class BaseApproach(object):
         lr_factor (float): Factor by which the learning rate will be reduced if loss does not change
         lr_patience (int): Epochs to wait before reducing learning rate
         clipgrad (int): value at which gradients are clipped to avoid explosion
+        curriculum (str): String to store the curriculum information - Format: "type:epochs:start:params" - type can be ['linear', 'exp', 'log']
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,curriculum=None):
         self.model=model
 
         self.nepochs=nepochs
@@ -31,13 +32,31 @@ class BaseApproach(object):
 
         self.criterion=torch.nn.CrossEntropyLoss()
         self.optimizer=self._get_optimizer()
+        self._parse_curriculum(curriculum)
 
         return
+    
+    def _parse_curriculum(self, val):
+        if val is None:
+            self.curriculum = None
+            return
+
+        vals = str.split(val, ":")
+        
+        if len(vals) < 2:
+            raise ValueError("Expected curriculum value to have at least 2 values")
+        
+        self.curriculum = {
+            "type": vals[0],
+            "epochs": int(vals[1]),
+            "start": float(vals[2]) if len(vals) > 2 else 0.2,
+            "params": vals[3:]
+        }
 
     def _get_optimizer(self,lr=None):
         raise NotImplementedError()
 
-    def train(self,t,xtrain,ytrain,xvalid,yvalid,curriculum=None):
+    def train(self,t,xtrain,ytrain,xvalid,yvalid):
         '''Train the network for a specific task.
 
         Args:
@@ -46,7 +65,6 @@ class BaseApproach(object):
             ytrain (numpy): Dataset of target values
             xvalid (numpy): Dataset of validation images
             yvalid (numpy): Dataset of validation targets
-            curriculum (str): Defines the curriculum for training to use
         '''
         best_loss=np.inf
         best_model=utils.get_model(self.model)
@@ -55,13 +73,11 @@ class BaseApproach(object):
         self.optimizer=self._get_optimizer(lr)
 
         # compute the curriculum
-        self.curriculum = curriculum
-        if curriculum is not None:
+        if self.curriculum is not None:
             # TODO: allow to adjust params
             ctrain = utils.compute_curriculum(xtrain, name="train")
             cvalid = utils.compute_curriculum(xvalid, name="test")
-            # TODO: adjust start value
-            cthres = 0.2
+            cthres = self._update_threshold(0., 0, 0)
         else:
             ctrain = torch.ones(xtrain.size()[0])
             cvalid = torch.ones(xvalid.size()[0])
@@ -87,7 +103,7 @@ class BaseApproach(object):
                     best_model=utils.get_model(self.model)
                     patience=self.lr_patience
                     print(' *',end='')
-                else:
+                elif cthres >= 1.:      # note: only break if all training data have been seen (i.e. threshold is 1)
                     patience-=1
                     if patience<=0:
                         lr/=self.lr_factor
@@ -97,6 +113,8 @@ class BaseApproach(object):
                             break
                         patience=self.lr_patience
                         self.optimizer=self._get_optimizer(lr)
+                else:
+                    patience=self.lr_patience
                 print()
         except KeyboardInterrupt:
             print()
@@ -109,9 +127,28 @@ class BaseApproach(object):
         return
     
     def _update_threshold(self, thres, e, b):
-        # TODO: integrate more settings here
-        if self.curriculum == "linear":
-            pass
+        # batch should be given as perc of total
+        x = e + b
+
+        # check if enabled
+        if self.curriculum is None:
+            return 1.
+
+        # iterate through options
+        ctype = self.curriculum["type"]
+        s = self.curriculum["start"]
+        me = self.curriculum["max_epochs"]
+        if ctype == "linear":
+            thres = s + (((1 - s) / me) * x)
+        elif ctype == "exp":
+            p = float(self.curriculum["params"][0]) if len(self.curriculum["params"]) > 0 else 2
+            c = (1-s) / np.power(me, p)
+            thres = s + (c*np.power(x, p))
+        elif ctype == "log":
+            c = (1-s) / np.log(me)
+            thres = s + (c*np.log(x))
+        else:
+            raise ValueError("Unkown curriculum function {}".format(ctype))
 
         # ensure bounds
         return min(thres, 1.)
@@ -134,10 +171,13 @@ class BaseApproach(object):
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
             self.train_batch(t, i, ex, ey, ec, b,r)
+
+            # update batchwise (filtering not implemented)
+            #thres = self._update_threshold(thres, e, float(i) / len(r))
         
-        # update thres
+        # update thres (for next ep)
         if thres < 1:
-            thres = self._update_threshold(thres, e, 1)
+            thres = self._update_threshold(thres, e + 1, 0)
 
         return thres
     

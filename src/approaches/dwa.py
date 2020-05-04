@@ -25,8 +25,8 @@ class Appr(BaseApproach):
         alpha (float): Weight with which the adjusted-triplet loss is taken into account
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb=1, delta=1):
-        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad)
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000, curriculum=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb=1, delta=1):
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad, curriculum)
 
         # set parameters
         print("Setting Parameters to:\n\tsparsity: {}{}\n\talpha: {}\n\tdelta: {}\n\tlambda: {}".format(sparsity, " (bin)" if bin_sparsity is True else "", alpha, delta, lamb))

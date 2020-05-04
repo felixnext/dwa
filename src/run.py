@@ -133,7 +133,7 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **
     if approach == 'dwa':
         params = {}
         for key in parameters:
-            if key in ["sparsity", "bin_sparsity", "alpha", "delta", "lamb", "sbatch", "lr_min", "lr_factor", "lr_patience", "clipgrad"]:
+            if key in ["sparsity", "bin_sparsity", "alpha", "delta", "lamb", "sbatch", "lr_min", "lr_factor", "lr_patience", "clipgrad", "curriculum"]:
                 params[key] = parameters[key]
     appr=appr.Appr(net,nepochs=nepochs,lr=lr,**params)
     print(appr.criterion)

@@ -9,8 +9,8 @@ from .approach import BaseApproach
 
 class Appr(BaseApproach):
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,lamb=0.75,smax=400,thres_cosh=50,thres_emb=6):
-        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad)
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,curriculum=None,lamb=0.75,smax=400,thres_cosh=50,thres_emb=6):
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad,curriculum)
 
         print("Setting Parameters to:\n\tlamba: {}\n\tsmax: {}".format(lamb, smax))
         self.lamb=lamb          # Grid search = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2.5, 4]; chosen was 0.75
