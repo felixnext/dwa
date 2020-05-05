@@ -61,7 +61,7 @@ class Net(torch.nn.Module):
         super(Net, self).__init__()
 
         # safty checks
-        if use_stem >= 5:
+        if use_stem is not None and use_stem >= 5:
             raise ValueError("The value of use_stem ({}) is larger than the number of layers (5)!".format(use_stem))
 
         # set internal values
@@ -102,7 +102,6 @@ class Net(torch.nn.Module):
 
         # generate task processor
         # all context processor stuff should start with 'p'
-        self.cin = None
         if use_processor is True:
             # params
             f_bn, f_out = processor_feats
@@ -110,14 +109,14 @@ class Net(torch.nn.Module):
             
             # adjust layers if input from FC
             if self.is_linear_processor:
-                self.pfc1 = torch.nn.Linear(self.processor_size, f_bn)
+                self.pfc1 = torch.nn.Linear(self.processor_size[0], f_bn)
                 self.pfc2 = torch.nn.Linear(f_bn, f_out)
                 self.pfc3 = torch.nn.Linear(f_out, self.emb_size)
                 #self.pfc3 = torch.nn.Embedding(100 * len(taskcla), self.emb_size)
             else:
                 self.pc1 = torch.nn.Conv2d(self.processor_size[0], f_bn, (1,1), (1,1), 0)
-                self.pc2 = torch.nn.Conv2d(f_bn, f_out, (3,3), (2,2), 2)
-                pin = self.cin//2
+                self.pc2 = torch.nn.Conv2d(f_bn, f_out, (3,3), (2,2), 1)
+                cin = self.processor_size[1] // 2
                 self.pfc1 = torch.nn.Linear(cin*cin*f_out, self.emb_size)
                 #self.pfc1 = torch.nn.Embedding(100 * len(taskcla), self.emb_size)
 
@@ -138,7 +137,7 @@ class Net(torch.nn.Module):
 
         # generate the layers
         if self.use_combination is True:
-            sq = np.sqrt(out_size)
+            sq = np.sqrt(flat_shape)
             fac1 = functools.reduce(lambda x, y: y if flat_shape % y == 0 else (x if flat_shape % x == 0 else 1), range(1, int(sq) + 2))
             fac2 = flat_shape // fac1
             
@@ -172,7 +171,7 @@ class Net(torch.nn.Module):
         else:
             # create the mask (computed separate)
             self._create_mask((fout, fin, ksize, ksize))
-            conv=Conv2d_dwa(fin,fout,kernel_size=ksize, comb=self.use_combination)
+            conv=Conv2d_dwa(fin,fout,kernel_size=ksize)
             return conv,s,psize
     
     def _create_linear(self, fin, fout, pos, stem, psize):
@@ -189,7 +188,7 @@ class Net(torch.nn.Module):
         else:
             # create the mask (computed separate)
             self._create_mask((fout, fin))
-            fc = Linear_dwa(fin,fout, comb=self.use_combination)
+            fc = Linear_dwa(fin,fout)
             return fc, psize
 
     def forward(self,t,x,emb=None):

@@ -137,7 +137,7 @@ class BaseApproach(object):
         # iterate through options
         ctype = self.curriculum["type"]
         s = self.curriculum["start"]
-        me = self.curriculum["max_epochs"]
+        me = self.curriculum["epochs"]
         if ctype == "linear":
             thres = s + (((1 - s) / me) * x)
         elif ctype == "exp":

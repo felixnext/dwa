@@ -359,10 +359,11 @@ def compute_curriculum(x, wnd=5, name=None):
     for i in tqdm(range(0,x.size()[0]), desc=name,ncols=100,ascii=True):
         # retrieve the image
         img = x[i].mean(dim=0)
-        if img.max() > 1.:
+        if img.max() > 10.:
             img = img / 255.
         
         # compute complexity
+        img = torch.clamp(img, min=-1., max=1.).cpu().numpy().astype("float32")
         c_img = entropy(img, disk(wnd))
         
         # set value

@@ -72,7 +72,7 @@ def _load_fashion_mnist():
 def _load_not_mnist():
     mean=(0.4254,)
     std=(0.4501,)
-    tfs = lambda: transforms.Compose([transforms.Pad(padding=2,fill=0),transforms.ToTensor(),transforms.Normalize(mean,std)])
+    tfs = lambda: transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean,std)])
 
     return _load_dataset(notMNIST, tfs, "not_mnist", 10, expand_channels=True)
 
@@ -80,8 +80,9 @@ def _load_svhn():
     mean=[0.4377,0.4438,0.4728]
     std=[0.198,0.201,0.197]
     tfs = lambda: transforms.Compose([transforms.ToTensor(),transforms.Normalize(mean,std)])
+    loader = lambda p, train, download, transform: datasets.SVHN(p, split="train" if train is True else "test", download=download, transform=transform)
     
-    return _load_dataset(datasets.SVHN, tfs, "svhn", 10)
+    return _load_dataset(loader, tfs, "svhn", 10)
 
 def _load_traffic_signs():
     mean=[0.3398,0.3117,0.3210]
@@ -125,8 +126,50 @@ def get(seed=0,fixed_order=False,pc_valid=0.15,num_data=8,sample=False):
     # iterate through all data and save in binary format (for faster loading)
     if not os.path.isdir('../dat/binary_mixture/'):
         os.makedirs('../dat/binary_mixture')
-        # Pre-load
-        for n,idx in enumerate(idata):
+    # Pre-load
+    for n,idx in enumerate(idata):
+        # check if data already exists
+        if os.path.isfile(os.path.join(os.path.expanduser('../dat/binary_mixture'),'data'+str(idx)+'trainx.bin')):
+            data[n] = dict.fromkeys(['name','ncla','train','test'])
+            if idx==0:
+                data[n]['name']='cifar10'
+                data[n]['ncla']=10
+            elif idx==1:
+                data[n]['name']='cifar100'
+                data[n]['ncla']=100
+            elif idx==2:
+                data[n]['name']='mnist'
+                data[n]['ncla']=10
+            elif idx==3:
+                data[n]['name']='svhn'
+                data[n]['ncla']=10
+            elif idx==4:
+                data[n]['name']='fashion_mnist'
+                data[n]['ncla']=10
+            elif idx==5:
+                data[n]['name']='traffic_signs'
+                data[n]['ncla']=43
+            elif idx==6:
+                data[n]['name']='facescrub'
+                data[n]['ncla']=100
+            elif idx==7:
+                data[n]['name']='not_mnist'
+                data[n]['ncla']=10
+            elif idx==8:
+                data[n]['name']='cub200'
+                data[n]['ncla']=200
+            else:
+                print('ERROR: Undefined data set',n)
+                sys.exit()
+
+            # Load
+            for s in ['train','test']:
+                data[n][s]={'x':[],'y':[]}
+                data[n][s]['x'] = torch.load(os.path.join(os.path.expanduser('../dat/binary_mixture'),'data'+str(idx)+s+'x.bin'))
+                data[n][s]['y'] = torch.load(os.path.join(os.path.expanduser('../dat/binary_mixture'),'data'+str(idx)+s+'y.bin'))
+
+        else:
+            # check the item
             if idx==0:
                 # CIFAR10
                 data[n] = _load_cifar10()
@@ -176,48 +219,6 @@ def get(seed=0,fixed_order=False,pc_valid=0.15,num_data=8,sample=False):
                 data[n][s]['y']=torch.LongTensor(np.array(data[n][s]['y'],dtype=int)).view(-1)
                 torch.save(data[n][s]['x'], os.path.join(os.path.expanduser('../dat/binary_mixture'),'data'+str(idx)+s+'x.bin'))
                 torch.save(data[n][s]['y'], os.path.join(os.path.expanduser('../dat/binary_mixture'),'data'+str(idx)+s+'y.bin'))
-
-    else:
-
-        # Load binary files
-        for n,idx in enumerate(idata):
-            data[n] = dict.fromkeys(['name','ncla','train','test'])
-            if idx==0:
-                data[n]['name']='cifar10'
-                data[n]['ncla']=10
-            elif idx==1:
-                data[n]['name']='cifar100'
-                data[n]['ncla']=100
-            elif idx==2:
-                data[n]['name']='mnist'
-                data[n]['ncla']=10
-            elif idx==3:
-                data[n]['name']='svhn'
-                data[n]['ncla']=10
-            elif idx==4:
-                data[n]['name']='fashion_mnist'
-                data[n]['ncla']=10
-            elif idx==5:
-                data[n]['name']='traffic_signs'
-                data[n]['ncla']=43
-            elif idx==6:
-                data[n]['name']='facescrub'
-                data[n]['ncla']=100
-            elif idx==7:
-                data[n]['name']='not_mnist'
-                data[n]['ncla']=10
-            elif idx==8:
-                data[n]['name']='cub200'
-                data[n]['ncla']=200
-            else:
-                print('ERROR: Undefined data set',n)
-                sys.exit()
-
-            # Load
-            for s in ['train','test']:
-                data[n][s]={'x':[],'y':[]}
-                data[n][s]['x'] = torch.load(os.path.join(os.path.expanduser('../dat/binary_mixture'),'data'+str(idx)+s+'x.bin'))
-                data[n][s]['y'] = torch.load(os.path.join(os.path.expanduser('../dat/binary_mixture'),'data'+str(idx)+s+'y.bin'))
 
     # Validation
     for t in data.keys():
