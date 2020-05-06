@@ -109,10 +109,11 @@ class Appr(BaseApproach):
 
         # compute the triplet loss and weight on complexity
         triplet = (1-c) * utils.anchor_loss(emb, self.anchor_pos, self.anchor_neg, self.anchor_task, self.alpha, self.delta)
+        triplet = triplet.sum()
 
         # compute the remaining losses
-        att = 0
-        reg = 0
+        att = torch.zeros(1).cuda()
+        reg = torch.zeros(1).cuda()
         for i, (mask, name) in enumerate(masks):
             # only use fisher for 
             if t > 0:
@@ -133,10 +134,11 @@ class Appr(BaseApproach):
         pos, neg, task_neg = utils.anchor_search(self.model, t, x_lim, y_lim, prev_anchors, self.criterion, searches=5, sbatch=self.sbatch)
 
         # assign
-        self.anchor_pos = pos
-        self.anchor_neg = neg
-        self.anchor_task = task_neg
-        self.anchor_store[t] = pos      # this stores the positive anchors for each task (to use in later ones)
+        self.anchor_pos = pos.detach()
+        self.anchor_neg = neg.detach()
+        if task_neg is not None:
+            self.anchor_task = task_neg.detach()
+        self.anchor_store[t] = pos.detach()      # this stores the positive anchors for each task (to use in later ones)
     
     def _fw_pass(self, model, t, b, x, y):
         with torch.no_grad():

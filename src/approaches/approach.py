@@ -82,18 +82,21 @@ class BaseApproach(object):
             ctrain = torch.ones(xtrain.size()[0])
             cvalid = torch.ones(xvalid.size()[0])
             cthres = 1
+        # push to cpu
+        ctrain = ctrain.cuda()
+        cvalid = cvalid.cuda()
 
         # Loop epochs
         try:
             for e in range(self.nepochs):
                 # Train
                 clock0=time.time()
-                cthres = self.train_epoch(t,xtrain,ytrain,ctrain,cthres,e)
+                cthres,num_used = self.train_epoch(t,xtrain,ytrain,ctrain,cthres,e)
                 clock1=time.time()
                 train_loss,train_acc=self.eval(t,xtrain,ytrain,ctrain)
                 clock2=time.time()
-                print('| Epoch {:3d}, time={:5.1f}ms/{:5.1f}ms | Cur: {:.2f} | Train: loss={:.3f}, acc={:5.1f}% |'.format(e+1,
-                    1000*self.sbatch*(clock1-clock0)/xtrain.size(0),1000*self.sbatch*(clock2-clock1)/xtrain.size(0),cthres,train_loss,100*train_acc),end='')
+                print('| Epoch {:3d}, time={:5.1f}ms/{:5.1f}ms | Cur: {:.2f} ({} of {}) | Train: loss={:.3f}, acc={:5.1f}% |'.format(e+1,
+                    1000*self.sbatch*(clock1-clock0)/xtrain.size(0),1000*self.sbatch*(clock2-clock1)/xtrain.size(0),cthres,num_used,xtrain.size(0),train_loss,100*train_acc),end='')
                 # Valid
                 valid_loss,valid_acc=self.eval(t,xvalid,yvalid,cvalid)
                 print(' Valid: loss={:.3f}, acc={:5.1f}% |'.format(valid_loss,100*valid_acc),end='')
@@ -166,7 +169,6 @@ class BaseApproach(object):
 
         # Loop batches
         for i in range(0,len(r),self.sbatch):
-            # TODO: apply per batch filtering on curric?
             # retrieve batch data
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
@@ -179,7 +181,7 @@ class BaseApproach(object):
         if thres < 1:
             thres = self._update_threshold(thres, e + 1, 0)
 
-        return thres
+        return thres, ex.size(0)
     
     def prepare_epoch(self, t, x, y, c):
         return

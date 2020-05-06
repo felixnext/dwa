@@ -7,6 +7,7 @@ from PIL import Image
 # for curriculum
 from skimage.filters.rank import entropy
 from skimage.morphology import disk
+from skimage.util import img_as_ubyte
 
 ########################################################################################################################
 
@@ -213,16 +214,21 @@ def anchor_loss(tensor, pos, neg, task_neg, alpha, delta):
         ones = [1] * len(pos.shape)
         pos = pos.repeat(tensor.shape[0], *ones)
         neg = neg.repeat(tensor.shape[0], *ones)
-        task_neg = task_neg.repeat(tensor.shape[0], *ones)
+        if task_neg is not None:
+            task_neg = task_neg.repeat(tensor.shape[0], *ones)
 
     # calculate difference
     p  = torch.sub(tensor, pos).norm(2)
     n  = torch.sub(tensor, neg).norm(2)
-    tn = torch.sub(tensor, task_neg).norm(2)
+    if task_neg is not None:
+        tn = torch.sub(tensor, task_neg).norm(2)
 
     # combine values
-    # TODO: add formula
-    return torch.clamp( ((delta + 1) * p) - n - (delta * tn) + alpha, min=0 )
+    # TODO: add formula + check if correct
+    res = ((delta + 1) * p) - n + alpha
+    if task_neg is not None:
+        res = res - (delta * tn)
+    return torch.clamp(res, min=0)
 
 def sparsity_regularization(mask, sparsity, binary=True):
     '''Computes the sparsity regularization as percentage of elements non-zero per element in the batch.
@@ -310,13 +316,13 @@ def anchor_search(model, t, x, y, prev_anchors, criterion, searches=5, sbatch=64
     max_loss = None
     for i in tqdm(range(0,searches), desc='negative anchor search',ncols=100,ascii=True):
         # create random vector - orthogonalize to positive and normalize
-        vec = torch.randn(*pos.shape)
+        vec = torch.randn(*pos.shape).cuda()
         vec = vec - (vec.dot(pos) * pos)
         vec = vec / vec.norm(p='fro')
 
         # iterate through model outputs
         gen = ds_gen()
-        for images, targets, task in gen():
+        for images, targets, task in gen:
             outputs,_,_ = model.forward(task, images, emb=vec)
             output = outputs[t]
             loss = criterion(output, targets)
@@ -329,21 +335,22 @@ def anchor_search(model, t, x, y, prev_anchors, criterion, searches=5, sbatch=64
     # search the task negative anchor
     task_neg = None
     max_loss = None
-    for i in tqdm(range(0,len(prev_anchors)), desc='task anchor search',ncols=100,ascii=True):
-        # take vector from previous tasks
-        vec = prev_anchors[i]
+    if len(prev_anchors) > 0:
+        for i in tqdm(range(0,len(prev_anchors)), desc='task anchor search',ncols=100,ascii=True):
+            # take vector from previous tasks
+            vec = prev_anchors[i]
 
-        # iterate through model outputs
-        gen = ds_gen()
-        for images, targets, task in gen():
-            outputs,_,_ = model.forward(task, images, emb=vec)
-            output = outputs[t]
-            loss = criterion(output, targets)
-        
-        # update (find vector position with maximal loss)
-        if max_loss is None or max_loss < loss:
-            max_loss = loss
-            task_neg = vec
+            # iterate through model outputs
+            gen = ds_gen()
+            for images, targets, task in gen():
+                outputs,_,_ = model.forward(task, images, emb=vec)
+                output = outputs[t]
+                loss = criterion(output, targets)
+            
+            # update (find vector position with maximal loss)
+            if max_loss is None or max_loss < loss:
+                max_loss = loss
+                task_neg = vec
     
     return pos, neg, task_neg
 
@@ -364,6 +371,7 @@ def compute_curriculum(x, wnd=5, name=None):
         
         # compute complexity
         img = torch.clamp(img, min=-1., max=1.).cpu().numpy().astype("float32")
+        img = img_as_ubyte(img)
         c_img = entropy(img, disk(wnd))
         
         # set value

@@ -182,6 +182,7 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **
         for u in range(t+1):
             xtest=data[u]['test']['x'].cuda()
             ytest=data[u]['test']['y'].cuda()
+            # TODO: integrate complexity here!
             test_loss,test_acc=appr.eval(u,xtest,ytest)
             print('>>> Test on task {:2d} - {:15s}: loss={:.3f}, acc={:5.1f}% <<<'.format(u,data[u]['name'],test_loss,100*test_acc))
             acc[t,u]=test_acc
