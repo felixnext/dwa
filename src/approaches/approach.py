@@ -37,6 +37,10 @@ class BaseApproach(object):
         return
     
     def _parse_curriculum(self, val):
+        '''Parses the curriculum information from format: `type:max_epochs:start:*parameters`
+
+        Note that parameters are separated by `:` as well.
+        '''
         if val is None:
             self.curriculum = None
             return
@@ -93,13 +97,13 @@ class BaseApproach(object):
                 clock0=time.time()
                 cthres,num_used = self.train_epoch(t,xtrain,ytrain,ctrain,cthres,e)
                 clock1=time.time()
-                train_loss,train_acc=self.eval(t,xtrain,ytrain,ctrain)
+                train_loss,train_acc,metric_str=self.eval(t,xtrain,ytrain,ctrain)
                 clock2=time.time()
-                print('| Epoch {:3d}, time={:5.1f}ms/{:5.1f}ms | Cur: {:.2f} ({} of {}) | Train: loss={:.3f}, acc={:5.1f}% |'.format(e+1,
-                    1000*self.sbatch*(clock1-clock0)/xtrain.size(0),1000*self.sbatch*(clock2-clock1)/xtrain.size(0),cthres,num_used,xtrain.size(0),train_loss,100*train_acc),end='')
+                print('| Epoch {:3d}, time={:5.1f}ms/{:5.1f}ms | Cur: {:.2f} ({} of {}) | Train: loss={:.3f}, acc={:5.1f}%{} |'.format(e+1,
+                    1000*self.sbatch*(clock1-clock0)/xtrain.size(0),1000*self.sbatch*(clock2-clock1)/xtrain.size(0),cthres,num_used,xtrain.size(0),train_loss,100*train_acc,metric_str),end='')
                 # Valid
-                valid_loss,valid_acc=self.eval(t,xvalid,yvalid,cvalid)
-                print(' Valid: loss={:.3f}, acc={:5.1f}% |'.format(valid_loss,100*valid_acc),end='')
+                valid_loss,valid_acc,metric_str=self.eval(t,xvalid,yvalid,cvalid)
+                print(' Valid: loss={:.3f}, acc={:5.1f}%{} |'.format(valid_loss,100*valid_acc,metric_str),end='')
                 # Adapt lr
                 if valid_loss<best_loss:
                     best_loss=valid_loss
@@ -202,13 +206,22 @@ class BaseApproach(object):
         idx = c <= thres
         return x[idx], y[idx], c[idx]
 
-    def eval(self,t,x,y,c):
+    def eval(self,t,x,y,c=None):
         total_num=0
         total_items = { "loss": 0, "acc": 0 }
         self.model.eval()
 
         r=np.arange(x.size(0))
         r=torch.LongTensor(r).cuda()
+
+        # check if curriculum is given
+        if c is None:
+            # compute the curriculum
+            if self.curriculum is not None:
+                c = utils.compute_curriculum(x, name="eval")
+            else:
+                c = torch.ones(x.size()[0])
+            c = c.cuda()
 
         # Loop batches
         for i in range(0,len(r),self.sbatch):
@@ -219,12 +232,13 @@ class BaseApproach(object):
             total_num += len(b)
         
         # print everything not acc and loss
+        metric_str = ""
         for key in total_items:
             if key in ["acc", "loss"]:
                 continue
-            print('  {}:{:.3f}  '.format(key,total_items[key]/total_num),end='')
+            metric_str += ' {}: {:.3f}'.format(key,total_items[key]/total_num)
 
-        return total_items["loss"]/total_num,total_items["acc"]/total_num
+        return total_items["loss"]/total_num,total_items["acc"]/total_num,metric_str
     
     def eval_batch(self, b, t, x, y, c, items={}):
         '''Eval code for a single batch.'''

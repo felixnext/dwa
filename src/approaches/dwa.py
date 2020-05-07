@@ -77,7 +77,7 @@ class Appr(BaseApproach):
 
     def eval_batch(self,b,t,x,y,c,items):
         # set items
-        for n in ["triplet_loss", "attention_loss", "sparsity_reg"]:
+        for n in ["triplet", "att", "sparse"]:
             items[n] = 0
         
         # load batch
@@ -97,9 +97,9 @@ class Appr(BaseApproach):
         # log relevant data
         items["loss"]+=loss.data.cpu().numpy().item()*len(b)
         items["acc"]+=hits.sum().data.cpu().numpy().item()
-        items["sparsity_reg"]+=reg.data.cpu().numpy().item()*len(b)
-        items["triplet_loss"]+=triplet.data.cpu().numpy().item()*len(b)
-        items["attention_loss"]+=att.data.cpu().numpy().item()*len(b)
+        items["sparse"]+=reg.data.cpu().numpy().item()*len(b)
+        items["triplet"]+=triplet.data.cpu().numpy().item()*len(b)
+        items["att"]+=att.data.cpu().numpy().item()*len(b)
     
         return items
 
@@ -122,6 +122,7 @@ class Appr(BaseApproach):
             reg += utils.sparsity_regularization(mask, self.sparsity, self.bin_sparse)
 
         # return the combined losses
+        # TODO: check formula and paramters
         return loss + self.alpha*triplet + self.lamb*reg, triplet, att, reg
     
     def prepare_epoch(self, t, x, y, c):

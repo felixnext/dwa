@@ -2,12 +2,13 @@ import sys,os,argparse,time
 import numpy as np
 import torch
 import fire
+from networks.alexnet_dwa import Linear_dwa, Conv2d_dwa
 
 import utils
 
 tstart=time.time()
 
-def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **parameters):
+def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, weight_init=None, **parameters):
     '''Trains an experiment given the current settings.
 
     Args:
@@ -17,6 +18,7 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **
         output (str): Path to store the output under
         nepochs (int): Number of epochs to iterate through
         lr (float): Learning Rate to apply 
+        weight_init (str): String that defines how the weights are initialized - it can be splitted (with `:`) between convolution (first) and Linear (second) layers. Options: ["xavier", "uniform", "normal", "ones", "zeros", "kaiming"]
         parameter (str): Approach dependent parameters
     '''
     # check the output path
@@ -25,7 +27,7 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **
     print('=' * 100)
     print('Arguments =')
     # 
-    args = {**parameters, "seed": seed, "experiment": experiment, "approach": approach, "output": output, "nepochs": nepochs, "lr": lr}
+    args = {**parameters, "seed": seed, "experiment": experiment, "approach": approach, "output": output, "nepochs": nepochs, "lr": lr, "weight_init": weight_init}
     for arg in args:
         print("\t{:10}: {}".format(arg, args[arg]))
     print('=' * 100)
@@ -128,6 +130,40 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **
         net=network.Net(inputsize,taskcla).cuda()
     utils.print_model_report(net)
 
+    # setup network weights
+    if weight_init is not None:
+        # retrieve init data
+        inits = weight_init.split(":")
+        conv_init = inits[0].split(",")
+        conv_bias = conv_init[1] if len(conv_init) > 1 else "zeros"
+        conv_init = conv_init[0]
+        linear_init = inits[-1].split(",")
+        linear_bias = linear_init[1] if len(linear_init) > 1 else "zeros"
+        linear_init = linear_init[0]
+
+        init_funcs = {
+            "xavier": lambda x: torch.nn.init.xavier_uniform_(x, gain=1.0),
+            "kaiming": lambda x: torch.nn.init.kaiming_normal_(x, nonlinearity="relu", mode='fan_in'),
+            "normal": lambda x: torch.nn.init.normal_(x, mean=0., std=1.),
+            "uniform": lambda x: torch.nn.init.uniform_(x, a=0., b=1.),
+            "ones": lambda x: x.data.fill_(1.),
+            "zeros": lambda x: x.data.fill_(0.)
+        }
+
+        print("Init network weights:\n\tlinear weights: {}\n\tlinear bias: {}\n\tconv weights: {}\n\tconv bias: {}".format(linear_init, linear_bias, conv_init, conv_bias))
+
+        # setup init function
+        def init_weights(m):
+            if type(m) == torch.nn.Linear or type(m) == Linear_dwa:
+                init_funcs[linear_init](m.weight)
+                init_funcs[linear_bias](m.bias)
+            if type(m) == torch.nn.Conv2d or type(m) == Conv2d_dwa:
+                init_funcs[conv_init](m.weight)
+                init_funcs[conv_bias](m.bias)
+                
+        # apply to network
+        net.apply(init_weights)
+
     # setup the approach
     params = parameters
     if approach == 'dwa':
@@ -182,7 +218,6 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, **
         for u in range(t+1):
             xtest=data[u]['test']['x'].cuda()
             ytest=data[u]['test']['y'].cuda()
-            # TODO: integrate complexity here!
             test_loss,test_acc=appr.eval(u,xtest,ytest)
             print('>>> Test on task {:2d} - {:15s}: loss={:.3f}, acc={:5.1f}% <<<'.format(u,data[u]['name'],test_loss,100*test_acc))
             acc[t,u]=test_acc
