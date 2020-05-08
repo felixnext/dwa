@@ -22,19 +22,27 @@ class Appr(BaseApproach):
         clipgrad (int): value at which gradients are clipped to avoid explosion
         sparsity (float): Soft-Constraint for the percentage of neurons used per layer for a specific task
         bin_sparsity (bool): Defines if sparsity should be calculated only as non-zero or gradular
-        alpha (float): Weight with which the adjusted-triplet loss is taken into account
+        alpha (float): Margin that is enforced by the triplet loss function
+        lamb_loss (float): Scaling of the dwa dependend loss parts
+        lamb_reg (float): Scaling of the regularization
+        delta (float): Scaling of the task dependend loss (default 1) - might be changed over tasks progression
+        use_anchor_first (bool): Defines if the anchor loss should be calculated for the first task
+        scale_att_loss (bool): Defines if the attention loss should be scaled
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000, curriculum=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb=1, delta=1):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000, curriculum="linear:100:0.2", sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=1, lamb_reg=500, delta=1, use_anchor_first=False, scale_att_loss=False):
         super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad, curriculum)
 
         # set parameters
-        print("Setting Parameters to:\n\tsparsity: {}{}\n\talpha: {}\n\tdelta: {}\n\tlambda: {}".format(sparsity, " (bin)" if bin_sparsity is True else "", alpha, delta, lamb))
+        print("Setting Parameters to:\n\tsparsity: {}{}\n\talpha: {}\n\tdelta: {}\n\tlambda: {} / {}\n\tanchor (first task): {}\n\tscale att: {}".format(sparsity, " (bin)" if bin_sparsity is True else "", alpha, delta, lamb_loss, lamb_reg, use_anchor_first, scale_att_loss))
         self.sparsity = sparsity
         self.alpha = alpha
-        self.lamb = lamb
+        self.lamb_loss = lamb_loss
+        self.lamb_reg = lamb_reg
         self.delta = delta
         self.bin_sparse = bin_sparsity
+        self.use_anchor_first = use_anchor_first
+        self.scale_attention = scale_att_loss
 
         # define constants used over training
         self.fisher = None
@@ -44,8 +52,9 @@ class Appr(BaseApproach):
         self.anchor_store = [None] * len(model.taskcla)
         
         # some anchor settings
-        self.anchor_thres = 0.4     # complexity threshold for anchor data (not use to high complexity to avoid confusion)
-        self.anchor_batches = 10    # number of batches to use for anchor training
+        self.anchor_thres = 0.4         # complexity threshold for anchor data (not use to high complexity to avoid confusion)
+        self.anchor_batches = 10        # number of batches to use for anchor training
+        self.max_layers = 5
 
         return
 
@@ -108,8 +117,11 @@ class Appr(BaseApproach):
         loss = self.criterion(outputs, targets)
 
         # compute the triplet loss and weight on complexity
-        triplet = (1-c) * utils.anchor_loss(emb, self.anchor_pos, self.anchor_neg, self.anchor_task, self.alpha, self.delta)
-        triplet = triplet.sum()
+        if t > 0 or self.use_anchor_first is True:
+            triplet = (1-c) * utils.anchor_loss(emb, self.anchor_pos, self.anchor_neg, self.anchor_task, self.alpha, self.delta)
+            triplet = triplet.sum()
+        else:
+            triplet = torch.zeros(1).cuda()
 
         # compute the remaining losses
         att = torch.zeros(1).cuda()
@@ -117,13 +129,14 @@ class Appr(BaseApproach):
         for i, (mask, name) in enumerate(masks):
             # only use fisher for 
             if t > 0:
-                scale = 1   # TODO: adjust scale?
-                att += torch.mul(mask * scale, self.fisher[name])
+                scale = 1
+                if self.scale_attention is True:
+                    scale = utils.scale_attention_loss(i, self.model.use_stem, self.max_layers, start=0.2)
+                att += torch.mul(mask * scale, self.fisher[name]).sum()
             reg += utils.sparsity_regularization(mask, self.sparsity, self.bin_sparse)
 
         # return the combined losses
-        # TODO: check formula and paramters
-        return loss + self.alpha*triplet + self.lamb*reg, triplet, att, reg
+        return loss + self.lamb_loss*(triplet + att) + self.lamb_reg*reg, triplet, att, reg
     
     def prepare_epoch(self, t, x, y, c):
         # filter data on complexity (limit on 0.4)

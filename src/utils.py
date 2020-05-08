@@ -208,7 +208,24 @@ def fisher_matrix_diag(t,x,y,model,fw_pass,sbatch=20):
 
 ########################################################################################################################
 
+def scale_attention_loss(pos, num_stem, num_max, start=0.2, scale='linear'):
+    pos_max = num_max - num_stem
+
+    if scale == "linear":
+        return start + pos*((1-start) / pos_max)
+    return 1
+
 def anchor_loss(tensor, pos, neg, task_neg, alpha, delta):
+    '''Calculates the anchor loss based on the variant of triplet loss function.
+
+    Args:
+        tensor: Original Embedding
+        pos: Positive Embedding to move towards
+        neg: Negative embedding to move away from
+        task_neg: Negative embedding of previous tasks to move away from
+        alpha: Controls the margin required between the vectors
+        delta: Controls the impact of the task negative embedding
+    '''
     # check the shape of the tensors for stacking (bring them to batch size)
     if len(tensor.shape) > len(pos.shape):
         ones = [1] * len(pos.shape)
@@ -224,8 +241,7 @@ def anchor_loss(tensor, pos, neg, task_neg, alpha, delta):
         tn = torch.sub(tensor, task_neg).norm(2)
 
     # combine values
-    # TODO: add formula + check if correct
-    res = ((delta + 1) * p) - n + alpha
+    res = ((delta + 1) * p) - n + (delta + 1) * alpha
     if task_neg is not None:
         res = res - (delta * tn)
     return torch.clamp(res, min=0)
