@@ -24,7 +24,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
     '''
     # check the output path
     if output == '':
-        output = '../res/' + experiment + '_' + approach + '_' + str(seed) + ("_" + name) if len(name) > 0 else "" + '.txt'
+        output = '../res/' + experiment + '_' + approach + '_' + str(seed) + (("_" + name) if len(name) > 0 else "") + '.txt'
     print('=' * 100)
     print('Arguments =')
     # 
