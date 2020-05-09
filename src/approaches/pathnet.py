@@ -5,12 +5,13 @@ import random
 
 import utils
 from copy import deepcopy
+from .approach import BaseApproach
 
-class Appr(object):
+class Appr(BaseApproach):
     # Based on paper and largely on https://github.com/dai-dao/pathnet-pytorch and https://github.com/kimhc6028/pathnet-pytorch
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=1000,generations=20):
-        self.model=model
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=1000,curriculum=None,generations=20):
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad,curriculum)
         self.initial_model=deepcopy(model)
 
         #architecture hyperparams (must be the same as alexnet_pathnet)
@@ -25,15 +26,6 @@ class Appr(object):
         self.P = 2              # from paper Secs 2.4 and 2.5, numbers of the individuals in each generation/paths to be trained
 
         self.nepochs=nepochs//self.generations   # To maintain same number of training updates
-        self.sbatch=sbatch
-        self.lr=lr
-        self.lr_min=lr_min
-        self.lr_factor=lr_factor
-        self.lr_patience=lr_patience
-        self.clipgrad=clipgrad
-
-        self.criterion=torch.nn.CrossEntropyLoss()
-        self.optimizer=self._get_optimizer()
 
         return
 
@@ -159,8 +151,9 @@ class Appr(object):
         for i in range(0,len(r),self.sbatch):
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
-            images=torch.autograd.Variable(x[b],volatile=False)
-            targets=torch.autograd.Variable(y[b],volatile=False)
+            with torch.no_grad():
+                images=torch.autograd.Variable(x[b])
+                targets=torch.autograd.Variable(y[b])
 
             # Forward
             outputs=self.model.forward(images,t,Path)
@@ -188,8 +181,9 @@ class Appr(object):
         for i in range(0,len(r),self.sbatch):
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
-            images=torch.autograd.Variable(x[b],volatile=True)
-            targets=torch.autograd.Variable(y[b],volatile=True)
+            with torch.no_grad():
+                images=torch.autograd.Variable(x[b])
+                targets=torch.autograd.Variable(y[b])
 
             # Forward
             outputs=self.model.forward(images,t,Path)
@@ -199,8 +193,8 @@ class Appr(object):
             hits=(pred==targets).float()
 
             # Log
-            total_loss+=loss.data.cpu().numpy()[0]*len(b)
-            total_acc+=hits.sum().data.cpu().numpy()[0]
+            total_loss+=loss.data.cpu().numpy()*len(b)
+            total_acc+=hits.sum().data.cpu().numpy()
             total_num+=len(b)
 
         return total_loss/total_num,total_acc/total_num

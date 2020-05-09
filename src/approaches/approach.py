@@ -70,6 +70,7 @@ class BaseApproach(object):
             xvalid (numpy): Dataset of validation images
             yvalid (numpy): Dataset of validation targets
         '''
+        self.prepare_train(t)
         best_loss=np.inf
         best_model=utils.get_model(self.model)
         lr=self.lr
@@ -186,6 +187,9 @@ class BaseApproach(object):
             thres = self._update_threshold(thres, e + 1, 0)
 
         return thres, ex.size(0)
+    
+    def prepare_train(self, t):
+        return
     
     def prepare_epoch(self, t, x, y, c):
         return

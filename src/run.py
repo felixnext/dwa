@@ -8,7 +8,7 @@ import utils
 
 tstart=time.time()
 
-def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, weight_init=None, **parameters):
+def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr=0.05, weight_init=None, **parameters):
     '''Trains an experiment given the current settings.
 
     Args:
@@ -16,6 +16,7 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, we
         experiment (str): Name of the experiment to load - choices: ['mnist2','pmnist','cifar','mixture']
         approach (str): Approach to take to training the experiment - choices: ['random','sgd','sgd-frozen','lwf','lfl','ewc','imm-mean','progressive','pathnet','imm-mode','sgd-restart','joint','hat','hat-test']
         output (str): Path to store the output under
+        name (str): Additional experiment name for grid search
         nepochs (int): Number of epochs to iterate through
         lr (float): Learning Rate to apply 
         weight_init (str): String that defines how the weights are initialized - it can be splitted (with `:`) between convolution (first) and Linear (second) layers. Options: ["xavier", "uniform", "normal", "ones", "zeros", "kaiming"]
@@ -23,7 +24,7 @@ def main(seed=0, experiment='', approach='', output='', nepochs=200, lr=0.05, we
     '''
     # check the output path
     if output == '':
-        output = '../res/' + experiment + '_' + approach + '_' + str(seed) + '.txt'
+        output = '../res/' + experiment + '_' + approach + '_' + str(seed) + ("_" + name) if len(name) > 0 else "" + '.txt'
     print('=' * 100)
     print('Arguments =')
     # 
