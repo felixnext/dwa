@@ -82,7 +82,7 @@ class Appr(BaseApproach):
                         clock0=time.time()
                         self.train_epoch(t,xtrain,ytrain,Path[p])
                         clock1=time.time()
-                        train_loss,train_acc=self.eval(t,xtrain,ytrain,Path[p])
+                        train_loss,train_acc,_=self.eval(t,xtrain,ytrain,Path[p])
                         clock2=time.time()
                         print('| Generation {:3d} | Path {:3d} | Epoch {:3d}, time={:5.1f}ms/{:5.1f}ms | Train: loss={:.3f}, acc={:5.1f}% |'.format(
                             g+1,p+1,e+1,1000*self.sbatch*(clock1-clock0)/xtrain.size(0),1000*self.sbatch*(clock2-clock1)/xtrain.size(0),train_loss,100*train_acc),end='')
@@ -197,4 +197,4 @@ class Appr(BaseApproach):
             total_acc+=hits.sum().data.cpu().numpy()
             total_num+=len(b)
 
-        return total_loss/total_num,total_acc/total_num
+        return total_loss/total_num,total_acc/total_num,""

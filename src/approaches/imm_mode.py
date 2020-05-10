@@ -76,8 +76,8 @@ class Appr(BaseApproach):
 
     def eval_batch(self,b,t,x,y,c,items):
         with torch.no_grad():
-            images=torch.autograd.Variable(x[b],volatile=True)
-            targets=torch.autograd.Variable(y[b],volatile=True)
+            images=torch.autograd.Variable(x[b])
+            targets=torch.autograd.Variable(y[b])
 
         # Forward
         outputs=self.model.forward(images)

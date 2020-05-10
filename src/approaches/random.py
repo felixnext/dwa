@@ -32,4 +32,4 @@ class Appr(object):
         pred=torch.LongTensor(r).cuda()
         hits=(pred==y).float()
 
-        return 0,hits.mean()
+        return 0,hits.mean(),""

@@ -219,8 +219,8 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
         for u in range(t+1):
             xtest=data[u]['test']['x'].cuda()
             ytest=data[u]['test']['y'].cuda()
-            test_loss,test_acc=appr.eval(u,xtest,ytest)
-            print('>>> Test on task {:2d} - {:15s}: loss={:.3f}, acc={:5.1f}% <<<'.format(u,data[u]['name'],test_loss,100*test_acc))
+            test_loss,test_acc,metric_str=appr.eval(u,xtest,ytest)
+            print('>>> Test on task {:2d} - {:15s}: loss={:.3f}, acc={:5.1f}%{} <<<'.format(u,data[u]['name'],test_loss,100*test_acc, metric_str))
             acc[t,u]=test_acc
             lss[t,u]=test_loss
 
