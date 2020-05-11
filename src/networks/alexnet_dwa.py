@@ -297,9 +297,7 @@ class Net(torch.nn.Module):
             emb = self.relu(self.pfc2(emb))
             emb = self.gate(self.pfc3(emb))
         else:
-            print("SHAPE: {}".format(x.shape))
             emb = self.pc_min(x)
-            print("SHAPE: {}".format(emb.shape))
             emb = self.relu(self.pc1(emb))
             emb = self.relu(self.pc2(emb))
             emb = emb.view((x.size(0), -1))
