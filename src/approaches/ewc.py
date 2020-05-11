@@ -72,7 +72,7 @@ class Appr(BaseApproach):
         return self.criterion(output,targets)+self.lamb*loss_reg
     
     def _fw_pass(self, model, t, b, x, y):
-        with torch.no_grad:
+        with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             target=torch.autograd.Variable(y[b])
 

@@ -87,7 +87,7 @@ class Appr(BaseApproach):
                         print('| Generation {:3d} | Path {:3d} | Epoch {:3d}, time={:5.1f}ms/{:5.1f}ms | Train: loss={:.3f}, acc={:5.1f}% |'.format(
                             g+1,p+1,e+1,1000*self.sbatch*(clock1-clock0)/xtrain.size(0),1000*self.sbatch*(clock2-clock1)/xtrain.size(0),train_loss,100*train_acc),end='')
                         # Valid
-                        valid_loss,valid_acc=self.eval(t,xvalid,yvalid,Path[p])
+                        valid_loss,valid_acc,_=self.eval(t,xvalid,yvalid,Path[p])
                         print(' Valid: loss={:.3f}, acc={:5.1f}% |'.format(valid_loss,100*valid_acc),end='')
 
                         # Save the winner
@@ -163,7 +163,7 @@ class Appr(BaseApproach):
             # Backward
             self.optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm(filter(lambda p: p.requires_grad, self.model.parameters()),self.clipgrad)
+            torch.nn.utils.clip_grad_norm_(filter(lambda p: p.requires_grad, self.model.parameters()),self.clipgrad)
             self.optimizer.step()
 
         return

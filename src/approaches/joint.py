@@ -99,7 +99,7 @@ class Appr(object):
             # Backward
             self.optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm(self.model.parameters(),self.clipgrad)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(),self.clipgrad)
             self.optimizer.step()
 
         return
@@ -157,8 +157,8 @@ class Appr(object):
             hits=(pred==targets).float()
 
             # Log
-            total_loss+=loss.data.cpu().numpy()[0]*len(b)
-            total_acc+=hits.sum().data.cpu().numpy()[0]
+            total_loss+=loss.data.cpu().numpy()*len(b)
+            total_acc+=hits.sum().data.cpu().numpy()
             total_num+=len(b)
 
         return total_loss/total_num,total_acc/total_num,""

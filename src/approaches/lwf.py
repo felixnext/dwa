@@ -47,7 +47,7 @@ class Appr(BaseApproach):
         # Backward
         self.optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm(self.model.parameters(),self.clipgrad)
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(),self.clipgrad)
         self.optimizer.step()
 
         return
@@ -64,7 +64,7 @@ class Appr(BaseApproach):
 
         # Forward current model
         outputs=self.model.forward(images)
-        loss=self.criterion(t,targets_old,outputs,targets)
+        loss=self.lwf_criterion(t,targets_old,outputs,targets)
         output=outputs[t]
         _,pred=output.max(1)
         hits=(pred==targets).float()

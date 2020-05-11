@@ -33,7 +33,7 @@ class Appr(BaseApproach):
         # Backward
         self.optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm(self.model.parameters(),self.clipgrad)
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(),self.clipgrad)
         self.optimizer.step()
 
         return
