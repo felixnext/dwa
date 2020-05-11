@@ -224,6 +224,11 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
             acc[t,u]=test_acc
             lss[t,u]=test_loss
 
+        # check if result directory exists
+        if not os.path.exists(os.path.dirname(output)):
+            print("create output dir")
+            os.makedirs(os.path.dirname(output))
+
         # Save
         print('Save at {}'.format(output))
         np.savetxt(output,acc,'%.4f')

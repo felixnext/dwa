@@ -19,16 +19,25 @@ class Conv2d_dwa(torch.nn.Module):
         self.stride = stride
         self.padding = padding
         self.dilation = dilation
+        # store sizes
+        self._fout = fout
+        self._fin = fin
+        self._kw = kernel_size
+        self._kh = kernel_size
     
     def forward(self, x, m):
         mask_weight = torch.mul(self.weight, m)
-        out = []
+        b_size = x.size()[0]
+        #out = []
 
         # compute conv for each element in batch
-        for i in range(x.size()[0]):
-            out.append(F.conv2d(x[i:i+1], mask_weight[i, ...], self.bias, self.stride, self.padding, self.dilation))
-
-        return torch.cat(out, dim=0)
+        out = F.conv2d(x.view(1, b_size*self._fin, x.size()[2], x.size()[3]), mask_weight.view(b_size*self._fout, self._fin, self._kh, self._kw), 
+            self.bias.repeat(b_size), self.stride, self.padding, self.dilation, groups=b_size)
+        out = out.view(b_size, self._fout, out.size()[2], out.size()[3])
+        #for i in range(x.size()[0]):
+        #    out.append(F.conv2d(x[i:i+1], mask_weight[i, ...], self.bias, self.stride, self.padding, self.dilation))
+        #out = torch.cat(out, dim=0)
+        return out
 
 class Linear_dwa(torch.nn.Module):
     '''Dense Layer that implements dynamic weight mask.'''
@@ -114,6 +123,15 @@ class Net(torch.nn.Module):
                 self.pfc3 = torch.nn.Linear(f_out, self.emb_size)
                 #self.pfc3 = torch.nn.Embedding(100 * len(taskcla), self.emb_size)
             else:
+                # check for input size and minimize
+                if self.processor_size[1] >= 16:
+                    self.pc_min = torch.nn.MaxPool2d(2)
+                    c, w, h = self.processor_size
+                    self.processor_size = (c, w // 2, h // 2)
+                else:
+                    self.pc_min = torch.nn.Identity()
+
+                # compute processor
                 self.pc1 = torch.nn.Conv2d(self.processor_size[0], f_bn, (1,1), (1,1), 0)
                 self.pc2 = torch.nn.Conv2d(f_bn, f_out, (3,3), (2,2), 1)
                 cin = self.processor_size[1] // 2
@@ -279,7 +297,8 @@ class Net(torch.nn.Module):
             emb = self.relu(self.pfc2(emb))
             emb = self.gate(self.pfc3(emb))
         else:
-            emb = self.relu(self.pc1(x))
+            emb = self.pc_min(x)
+            emb = self.relu(self.pc1(emb))
             emb = self.relu(self.pc2(emb))
             emb = emb.view((x.size(0), -1))
             emb = self.gate(self.pfc1(emb))
