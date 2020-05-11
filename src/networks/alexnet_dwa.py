@@ -78,7 +78,7 @@ class Net(torch.nn.Module):
         self.taskcla=taskcla                        # contains tasks with number of classes
         self.use_stem = use_stem                    # defines the number of stem layers to use (or None for none)
         self.use_processor = use_processor          # defines if the pre-processor should be applied (or simply use task embeddings)
-        self.is_linear_processor = False if use_stem is None else use_stem > 2
+        self.is_linear_processor = False if use_stem is None else use_stem > 3
         self.use_combination = use_combination      # defines if attention masks should be generated through combination (to save weights)
         self.use_concat = use_concat                # defines if input to the pre-processor should be concated
         self.use_dropout = use_dropout
@@ -87,9 +87,9 @@ class Net(torch.nn.Module):
         # create all relevant convolutions (either native as stem or dwa masked)
         self.mask_layers = torch.nn.ModuleList()
         self.mask_shapes = []
-        self.c1,s,psize1 = self._create_conv(ncha, 64,  size//8,  size, 0, use_stem, inputsize)
-        self.c2,s,psize2 = self._create_conv(64,   128, size//10, s,    1, use_stem, psize1)
-        self.c3,s,psize3 = self._create_conv(128,  256, 2,        s,    2, use_stem, psize2)
+        self.c1,s,psize1 = self._create_conv(ncha, 64,  size//8,  size, 1, use_stem, inputsize)
+        self.c2,s,psize2 = self._create_conv(64,   128, size//10, s,    2, use_stem, psize1)
+        self.c3,s,psize3 = self._create_conv(128,  256, 2,        s,    3, use_stem, psize2)
         self.smid=s
         self.maxpool=torch.nn.MaxPool2d(2)
         self.relu=torch.nn.ReLU()
@@ -101,8 +101,8 @@ class Net(torch.nn.Module):
         else:
             self.drop1 = torch.nn.Identity()
             self.drop2 = torch.nn.Identity()
-        self.fc1,psize4 = self._create_linear(256*self.smid*self.smid, 2048, 3, use_stem, psize3)
-        self.fc2,psize5 = self._create_linear(2048,                    2048, 4, use_stem, psize4)
+        self.fc1,psize4 = self._create_linear(256*self.smid*self.smid, 2048, 4, use_stem, psize3)
+        self.fc2,psize5 = self._create_linear(2048,                    2048, 5, use_stem, psize4)
         
         # define the names of the masks
         self.mask_names = ["c1.weight", "c2.weight", "c3.weight", "fc1.weight", "fc2.weight"]
@@ -297,7 +297,9 @@ class Net(torch.nn.Module):
             emb = self.relu(self.pfc2(emb))
             emb = self.gate(self.pfc3(emb))
         else:
+            print("SHAPE: {}".format(x.shape))
             emb = self.pc_min(x)
+            print("SHAPE: {}".format(emb.shape))
             emb = self.relu(self.pc1(emb))
             emb = self.relu(self.pc2(emb))
             emb = emb.view((x.size(0), -1))
