@@ -358,7 +358,7 @@ def anchor_search(model, t, x, y, prev_anchors, criterion, searches=5, sbatch=64
 
             # iterate through model outputs
             gen = ds_gen()
-            for images, targets, task in gen():
+            for images, targets, task in gen:
                 outputs,_,_ = model.forward(task, images, emb=vec)
                 output = outputs[t]
                 loss = criterion(output, targets)
