@@ -23,14 +23,14 @@ class Appr(BaseApproach):
         sparsity (float): Soft-Constraint for the percentage of neurons used per layer for a specific task
         bin_sparsity (bool): Defines if sparsity should be calculated only as non-zero or gradular
         alpha (float): Margin that is enforced by the triplet loss function
-        lamb_loss (float): Scaling of the dwa dependend loss parts
+        lamb_loss (float): Scaling of the dwa dependend loss parts - Can also be a tuple or list that contains combined values
         lamb_reg (float): Scaling of the regularization
         delta (float): Scaling of the task dependend loss (default 1) - might be changed over tasks progression
         use_anchor_first (bool): Defines if the anchor loss should be calculated for the first task
         scale_att_loss (bool): Defines if the attention loss should be scaled
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000, curriculum="linear:100:0.2", sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=1, lamb_reg=500, delta=1, use_anchor_first=False, scale_att_loss=False):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000, curriculum="linear:100:0.2", sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[1, 0.01], lamb_reg=500, delta=1, use_anchor_first=False, scale_att_loss=False):
         super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad, curriculum)
 
         # set parameters
@@ -136,7 +136,11 @@ class Appr(BaseApproach):
             reg += utils.sparsity_regularization(mask, self.sparsity, self.bin_sparse)
 
         # return the combined losses
-        return loss + self.lamb_loss*(triplet + att) + self.lamb_reg*reg, triplet, att, reg
+        if isinstance(self.lamb_loss, list) or isinstance(self.lamb_loss, tuple):
+            loss_sum = loss + self.lamb_loss[0]*triplet + self.lamb_loss[1]*att + self.lamb_reg*reg
+        else:
+            loss_sum = loss + self.lamb_loss*(triplet + att) + self.lamb_reg*reg
+        return loss_sum, triplet, att, reg
     
     def prepare_epoch(self, t, x, y, c):
         # filter data on complexity (limit on 0.4)
