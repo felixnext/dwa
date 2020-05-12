@@ -63,12 +63,12 @@ class Appr(BaseApproach):
         if lr is None: lr=self.lr
         return torch.optim.SGD(self.model.parameters(),lr=lr)
 
-    def train_batch(self,t,i,x,y,c,b,r):
+    def train_batch(self,t,tt,i,x,y,c,b,r):
         # retrieve relevant data
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
-            task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+            task=torch.autograd.Variable(tt)
             comp = torch.autograd.Variable(c[b])
         
         # compute forward pass
@@ -154,11 +154,11 @@ class Appr(BaseApproach):
             self.anchor_task = task_neg.detach()
         self.anchor_store[t] = pos.detach()      # this stores the positive anchors for each task (to use in later ones)
     
-    def _fw_pass(self, model, t, b, x, y):
+    def _fw_pass(self, model, t, tt, b, x, y):
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
-            task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+            task=torch.autograd.Variable(tt)
             c = 1
         
         # compute forward pass

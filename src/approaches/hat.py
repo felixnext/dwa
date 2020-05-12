@@ -28,12 +28,12 @@ class Appr(BaseApproach):
         if lr is None: lr=self.lr
         return torch.optim.SGD(self.model.parameters(),lr=lr)
 
-    def train_batch(self,t,i,x,y,c,b,r):
+    def train_batch(self,t,tt,i,x,y,c,b,r):
         # retrieve relevant data
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
-            task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+            task=torch.autograd.Variable(tt)
         
         # annealing value for the gate impact (used to reduce learning impact - i.e. reduce embedding layer plasticty over time)
         s = (self.smax - 1/self.smax)*i/len(r)+1/self.smax

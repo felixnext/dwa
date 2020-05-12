@@ -185,7 +185,9 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
     for t,ncla in taskcla:
         # check if in test mode and finish after 1 task
         i += 1
-        if test_mode is not None and i > test_mode: break
+        if test_mode is not None and i > test_mode:
+            print("INFO: In Test-Mode - breaking after Task {}".format(test_mode))
+            break
 
         print('*'*100)
         print('Task {:2d} ({:s})'.format(t,data[t]['name']))

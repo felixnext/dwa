@@ -23,7 +23,7 @@ class Appr(BaseApproach):
         if lr is None: lr = self.lr
         return torch.optim.SGD(self.model.parameters(),lr=lr)
 
-    def train_batch(self,t,i,x,y,c,b,r):
+    def train_batch(self,t,tt,i,x,y,c,b,r):
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
@@ -71,7 +71,7 @@ class Appr(BaseApproach):
 
         return self.criterion(output,targets)+self.lamb*loss_reg
     
-    def _fw_pass(self, model, t, b, x, y):
+    def _fw_pass(self, model, t,tt, b, x, y):
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             target=torch.autograd.Variable(y[b])

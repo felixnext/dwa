@@ -169,6 +169,7 @@ class BaseApproach(object):
         r=np.arange(ex.size(0))
         np.random.shuffle(r)
         r=torch.LongTensor(r).cuda()
+        tt=torch.LongTensor([t]).cuda()
 
         self.prepare_epoch(t, x, y, c)
 
@@ -177,7 +178,7 @@ class BaseApproach(object):
             # retrieve batch data
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
-            self.train_batch(t, i, ex, ey, ec, b,r)
+            self.train_batch(t, tt, i, ex, ey, ec, b,r)
 
             # update batchwise (filtering not implemented)
             #thres = self._update_threshold(thres, e, float(i) / len(r))
@@ -194,7 +195,7 @@ class BaseApproach(object):
     def prepare_epoch(self, t, x, y, c):
         return
     
-    def train_batch(self, t, i, x, y, c, b,r):
+    def train_batch(self, t, tt, i, x, y, c, b,r):
         '''Code to train a single batch.'''
         raise NotImplementedError()
     
