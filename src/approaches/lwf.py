@@ -84,7 +84,7 @@ class Appr(BaseApproach):
             loss_dist+=utils.cross_entropy(outputs[t_old],targets_old[t_old],exp=1/self.T)
 
         # Cross entropy loss
-        loss_ce=self.ce(outputs[t],targets)
+        loss_ce=self.criterion(outputs[t],targets)
 
         # We could add the weight decay regularization mentioned in the paper. However, this might not be fair/comparable to other approaches
 

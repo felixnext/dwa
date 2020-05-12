@@ -126,7 +126,7 @@ class Appr(object):
             loss=self.criterion_train(tasks,outputs,targets)
 
             # Log
-            total_loss+=loss.data.cpu().numpy()[0]*len(b)
+            total_loss+=loss.data.cpu().numpy()*len(b)
             total_num+=len(b)
 
         return total_loss/total_num

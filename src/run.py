@@ -180,10 +180,14 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
     # Loop tasks
     acc=np.zeros((len(taskcla),len(taskcla)),dtype=np.float32)
     lss=np.zeros((len(taskcla),len(taskcla)),dtype=np.float32)
+    i = 0
     for t,ncla in taskcla:
         print('*'*100)
         print('Task {:2d} ({:s})'.format(t,data[t]['name']))
         print('*'*100)
+        i += 1
+        if i > 1:
+            break
 
         if approach == 'joint':
             # Get data. We do not put it to GPU

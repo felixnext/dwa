@@ -27,7 +27,7 @@ class Appr(BaseApproach):
         return torch.optim.SGD(self.model.parameters(),lr=lr)
     
     def _fw_pass(self, model, t, b, x, y):
-        with torch.no_grad:
+        with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             target=torch.autograd.Variable(y[b])
 

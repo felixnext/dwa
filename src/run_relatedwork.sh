@@ -15,7 +15,7 @@ python3 run.py --name="curric" --experiment=mixture --approach=sgd --weight_init
 python3 run.py --name="base" --experiment=mixture --approach="sgd-frozen" --weight_init="kaiming:xavier" --seed=0
 python3 run.py --name="curric" --experiment=mixture --approach="sgd-frozen" --weight_init="kaiming:xavier" --curriculum="linear:100:0.2" --seed=0
 python3 run.py --name="base" --experiment=mixture --approach="sgd-restart" --weight_init="kaiming:xavier" --seed=0
-python3 run.py --name="curric" --experiment=mixture --approach="sgd-retstart" --weight_init="kaiming:xavier" --curriculum="linear:100:0.2" --seed=0
+python3 run.py --name="curric" --experiment=mixture --approach="sgd-restart" --weight_init="kaiming:xavier" --curriculum="linear:100:0.2" --seed=0
 # Further Approaches (with default parameters)
 python3 run.py --name="base" --experiment=mixture --approach=lwf --weight_init="kaiming:xavier" --seed=0
 python3 run.py --name="base" --experiment=mixture --approach=lfl --weight_init="kaiming:xavier" --seed=0
