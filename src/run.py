@@ -8,7 +8,7 @@ import utils
 
 tstart=time.time()
 
-def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr=0.05, weight_init=None, **parameters):
+def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr=0.05, weight_init=None, test_mode=None, **parameters):
     '''Trains an experiment given the current settings.
 
     Args:
@@ -20,6 +20,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
         nepochs (int): Number of epochs to iterate through
         lr (float): Learning Rate to apply 
         weight_init (str): String that defines how the weights are initialized - it can be splitted (with `:`) between convolution (first) and Linear (second) layers. Options: ["xavier", "uniform", "normal", "ones", "zeros", "kaiming"]
+        test_mode (int): Defines how many tasks to iterate through
         parameter (str): Approach dependent parameters
     '''
     # check the output path
@@ -182,12 +183,13 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
     lss=np.zeros((len(taskcla),len(taskcla)),dtype=np.float32)
     i = 0
     for t,ncla in taskcla:
+        # check if in test mode and finish after 1 task
+        i += 1
+        if test_mode is not None and i > test_mode: break
+
         print('*'*100)
         print('Task {:2d} ({:s})'.format(t,data[t]['name']))
         print('*'*100)
-        i += 1
-        if i > 1:
-            break
 
         if approach == 'joint':
             # Get data. We do not put it to GPU
