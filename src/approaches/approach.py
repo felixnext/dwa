@@ -26,7 +26,7 @@ class BaseApproach(object):
         log_path (Str): Path under which the log data is stored after training
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=None,clipgrad=10000,curriculum=None,log_path=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=None,clipgrad=10000,curriculum=None,log_path=None, apex=False):
         self.model=model
 
         self.nepochs=nepochs
@@ -36,11 +36,11 @@ class BaseApproach(object):
         self.lr_factor=lr_factor
         self.lr_patience=lr_patience
         self.clipgrad=clipgrad
+        self.use_apex = apex
 
         self.criterion=torch.nn.CrossEntropyLoss()
         self.optimizer=self._get_optimizer()
         self._parse_curriculum(curriculum)
-        self.use_apex = False
 
         # integrated logging for different values
         self.logpath = log_path
