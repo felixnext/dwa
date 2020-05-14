@@ -30,7 +30,7 @@ class Appr(BaseApproach):
         scale_att_loss (bool): Defines if the attention loss should be scaled
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,500],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[1, 0.01], lamb_reg=500, delta=1, use_anchor_first=False, scale_att_loss=False):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,500],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[1, 0.01], lamb_reg=10, delta=1, use_anchor_first=False, scale_att_loss=False):
         super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, warmup, clipgrad, curriculum, log_path)
 
         # set parameters
