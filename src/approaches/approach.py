@@ -312,9 +312,9 @@ class BaseApproach(object):
                     self.logs[name] = {}
                 # add values
                 if t not in self.logs[name]:
-                    self.logs[name][t] = np.array(items[metric])
+                    self.logs[name][t] = np.array([items[metric]])
                 else:
-                    self.logs[name][t] = np.concatenate([self.logs[name][t], np.array(items[metric])], axis=0)
+                    self.logs[name][t] = np.concatenate([self.logs[name][t], np.array([items[metric]])], axis=0)
     
     def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
         '''Code executed after successfully training a task.'''
