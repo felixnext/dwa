@@ -9,8 +9,8 @@ class Conv2d_dwa(torch.nn.Module):
     def __init__(self, fin, fout, kernel_size, stride=(1,1), padding=(0,0), dilation=(1,1)):
         super().__init__()
         # create the weights
-        self.weight = torch.nn.Parameter(torch.Tensor(fout, fin, kernel_size, kernel_size))
-        self.bias = torch.nn.Parameter(torch.Tensor(fout))
+        self.weight = torch.nn.Parameter(torch.FloatTensor(fout, fin, kernel_size, kernel_size))
+        self.bias = torch.nn.Parameter(torch.FloatTensor(fout))
         self.stride = stride
         self.padding = padding
         self.dilation = dilation
@@ -39,8 +39,8 @@ class Linear_dwa(torch.nn.Module):
     def __init__(self, fin, fout):
         super().__init__()
         # create the weights
-        self.weight = torch.nn.Parameter(torch.Tensor(fout, fin))
-        self.bias = torch.nn.Parameter(torch.Tensor(fout))
+        self.weight = torch.nn.Parameter(torch.FloatTensor(fout, fin))
+        self.bias = torch.nn.Parameter(torch.FloatTensor(fout))
     
     def forward(self, x, m):
         # expand the weights for the relevant process

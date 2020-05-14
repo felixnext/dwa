@@ -42,6 +42,10 @@ class BaseApproach(object):
         self.optimizer=self._get_optimizer()
         self._parse_curriculum(curriculum)
 
+        # init model
+        if self.use_apex is True:
+            self.model, optimizer = amp.initialize(self.model, self.optimizer, opt_level="O3")
+
         # integrated logging for different values
         self.logpath = log_path
         if log_path is not None:
@@ -82,9 +86,11 @@ class BaseApproach(object):
         '''Retrieves the optimizer (default impl)'''
         if lr is None: lr=self.lr
         optimizer = torch.optim.SGD(self.model.parameters(),lr=lr)
-        if self.use_apex is True:
-            self.model, optimizer = amp.initialize(self.model, optimizer, opt_level="O1")
         return optimizer
+    
+    def _change_lr(self, lr=None):
+        for param_group in self.optimizer.param_groups:
+                param_group['lr'] = lr
 
     def train(self,t,xtrain,ytrain,xvalid,yvalid):
         '''Train the network for a specific task.
@@ -102,7 +108,8 @@ class BaseApproach(object):
         best_model=utils.get_model(self.model)
         lr=self.lr if self.warmup is None else self.lr / self.warmup[1]
         patience=self.lr_patience
-        self.optimizer=self._get_optimizer(lr)
+        #self.optimizer=self._get_optimizer(lr)
+        self._change_lr(lr)
         warmup_ep = self.warmup[0] if self.warmup is not None else 0
         log_lr = []
 
@@ -152,14 +159,16 @@ class BaseApproach(object):
                             print()
                             break
                         patience=self.lr_patience
-                        self.optimizer=self._get_optimizer(lr)
+                        #self.optimizer=self._get_optimizer(lr)
+                        self._change_lr(lr)
                 else:
                     patience=self.lr_patience
                 
                 # check if warmup ended (and adjust optimizer)
                 if (e+1) == warmup_ep:
                     lr = self.lr
-                    self.optimizer=self._get_optimizer(lr)
+                    #self.optimizer=self._get_optimizer(lr)
+                    self._change_lr(lr)
 
                 print()
         except KeyboardInterrupt:
