@@ -81,7 +81,10 @@ class BaseApproach(object):
     def _get_optimizer(self,lr=None):
         '''Retrieves the optimizer (default impl)'''
         if lr is None: lr=self.lr
-        return torch.optim.SGD(self.model.parameters(),lr=lr)
+        optimizer = torch.optim.SGD(self.model.parameters(),lr=lr)
+        if self.use_apex is True:
+            self.model, optimizer = amp.initialize(self.model, optimizer, opt_level="O1")
+        return optimizer
 
     def train(self,t,xtrain,ytrain,xvalid,yvalid):
         '''Train the network for a specific task.
@@ -102,8 +105,6 @@ class BaseApproach(object):
         self.optimizer=self._get_optimizer(lr)
         warmup_ep = self.warmup[0] if self.warmup is not None else 0
         log_lr = []
-        if self.use_apex is True:
-            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
         # compute the curriculum
         if self.curriculum is not None:

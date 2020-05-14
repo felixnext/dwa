@@ -44,7 +44,7 @@ class Linear_dwa(torch.nn.Module):
     
     def forward(self, x, m):
         # expand the weights for the relevant process
-        mask_weight = torch.mul(self.weight, m).permute(0,2,1)
+        mask_weight = torch.mul(self.weight, m).permute(0,2,1).float()
         out = torch.einsum("ac,acb->ab",(x, mask_weight)) + self.bias
         return out
 
