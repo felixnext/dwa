@@ -2,6 +2,11 @@ import sys,time
 import numpy as np
 import torch
 
+# leverage tensorcores
+try:
+    from apex import amp
+    print("INFO: Using APEX")
+except: pass
 import utils
 
 class BaseApproach(object):
@@ -35,6 +40,7 @@ class BaseApproach(object):
         self.criterion=torch.nn.CrossEntropyLoss()
         self.optimizer=self._get_optimizer()
         self._parse_curriculum(curriculum)
+        self.use_apex = False
 
         # integrated logging for different values
         self.logpath = log_path
@@ -96,6 +102,8 @@ class BaseApproach(object):
         self.optimizer=self._get_optimizer(lr)
         warmup_ep = self.warmup[0] if self.warmup is not None else 0
         log_lr = []
+        if self.use_apex is True:
+            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
         # compute the curriculum
         if self.curriculum is not None:

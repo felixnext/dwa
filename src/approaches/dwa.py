@@ -3,6 +3,14 @@ import numpy as np
 import torch
 from copy import deepcopy
 
+# leverage tensorcores
+AMP_READY = False
+try:
+    from apex import amp
+    print("INFO: Using APEX")
+    AMP_READY = True
+except: pass
+
 import utils
 from .approach import BaseApproach
 
@@ -56,6 +64,9 @@ class Appr(BaseApproach):
         self.anchor_batches = 10        # number of batches to use for anchor training
         self.max_layers = 5
 
+        # leverage tensorcores
+        self.use_apex = AMP_READY
+
         return
 
     def train_batch(self,t,tt,i,x,y,c,b,r):
@@ -73,7 +84,14 @@ class Appr(BaseApproach):
 
         # backward pass
         self.optimizer.zero_grad()
-        loss.backward()
+
+        # leverage tensorcores
+        if self.use_apex is True:
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                scaled_loss.backward()
+        else:
+            loss.backward()
+
         torch.nn.utils.clip_grad_norm_(self.model.parameters(),self.clipgrad)   # avoid too high gradients
         self.optimizer.step()   # take an optimizer step (according to internal learning rate)
         
