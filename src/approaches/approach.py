@@ -44,7 +44,7 @@ class BaseApproach(object):
 
         # init model
         if self.use_apex is True:
-            self.model, optimizer = amp.initialize(self.model, self.optimizer, opt_level="O3")
+            self.model, optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
         # integrated logging for different values
         self.logpath = log_path
