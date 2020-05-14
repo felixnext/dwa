@@ -7,12 +7,12 @@ from .approach import BaseApproach
 
 class Appr(BaseApproach):
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,curriculum=None):
-        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad,curriculum)
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=None,clipgrad=10000,curriculum=None,log_path=None):
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience,warmup, clipgrad,curriculum, log_path)
 
         return
 
-    def _get_optimizer(self,lr=None):
+    def _get_optimizer(self,lr=None,warmup=None):
         if lr is None: lr=self.lr
         return torch.optim.SGD(filter(lambda p: p.requires_grad, self.model.parameters()),lr=lr)
 

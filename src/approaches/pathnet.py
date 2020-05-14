@@ -10,7 +10,7 @@ from .approach import BaseApproach
 class Appr(BaseApproach):
     # Based on paper and largely on https://github.com/dai-dao/pathnet-pytorch and https://github.com/kimhc6028/pathnet-pytorch
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=1000,curriculum=None,generations=20):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=None,clipgrad=1000,curriculum=None,log_path=None,generations=20):
         super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad,curriculum)
         self.initial_model=deepcopy(model)
 

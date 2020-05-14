@@ -9,17 +9,13 @@ from .approach import BaseApproach
 class Appr(BaseApproach):
     """ Class implementing the Less Forgetting Learning approach described in http://arxiv.org/abs/1607.00122 """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=200,curriculum=None,lamb=0.05):
-        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad,curriculum)
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=None,clipgrad=200,curriculum=None,log_path=None,lamb=0.05):
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience,warmup, clipgrad,curriculum, log_path)
         self.model_old=None
 
         self.lamb=lamb      # Grid search = [1e-1, 5e-2, 1e-2, 5e-3, 1e-3, 5e-4, 1e-4, 5e-5]; best was 0.05, but none of them really worked
 
         return
-
-    def _get_optimizer(self,lr=None):
-        if lr is None: lr=self.lr
-        return torch.optim.SGD(self.model.parameters(),lr=lr)
 
     def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
         self.model_old=deepcopy(self.model)

@@ -8,7 +8,7 @@ import utils
 
 tstart=time.time()
 
-def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr=0.05, weight_init=None, test_mode=None, **parameters):
+def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr=0.05, weight_init=None, test_mode=None, log_path=None, **parameters):
     '''Trains an experiment given the current settings.
 
     Args:
@@ -21,6 +21,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
         lr (float): Learning Rate to apply 
         weight_init (str): String that defines how the weights are initialized - it can be splitted (with `:`) between convolution (first) and Linear (second) layers. Options: ["xavier", "uniform", "normal", "ones", "zeros", "kaiming"]
         test_mode (int): Defines how many tasks to iterate through
+        log_path (str): Path to store detailed logs
         parameter (str): Approach dependent parameters
     '''
     # check the output path
@@ -91,8 +92,6 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
         if approach in ['hat', 'hat-test']:
             from networks import mlp_hat as network
         elif approach == 'dwa':
-            # TODO: implement that?
-            raise NotImplementedError()
             from networks import mlp_dwa as network
         else:
             from networks import mlp as network
@@ -173,7 +172,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
         for key in parameters:
             if key in ["sparsity", "bin_sparsity", "alpha", "delta", "lamb", "sbatch", "lr_min", "lr_factor", "lr_patience", "clipgrad", "curriculum"]:
                 params[key] = parameters[key]
-    appr=appr.Appr(net,nepochs=nepochs,lr=lr,**params)
+    appr=appr.Appr(net,nepochs=nepochs,lr=lr,log_path=log_path,**params)
     print(appr.criterion)
     utils.print_optimizer_config(appr.optimizer)
     print('-'*100)
@@ -254,6 +253,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
 
     print('[Elapsed time = {:.1f} h]'.format((time.time()-tstart)/(60*60)))
 
+    # optionally: store logs
     if hasattr(appr, 'logs'):
         if appr.logs is not None:
             #save task names
@@ -268,8 +268,8 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
             #pickle
             import gzip
             import pickle
-            with gzip.open(os.path.join(appr.logpath), 'wb') as output:
-                pickle.dump(appr.logs, output, pickle.HIGHEST_PROTOCOL)
+            with gzip.open(os.path.join(appr.logpath, os.path.basename(output) + "_logs.gzip"), 'wb') as log_file:
+                pickle.dump(appr.logs, log_file, pickle.HIGHEST_PROTOCOL)
 
     ########################################################################################################################
 

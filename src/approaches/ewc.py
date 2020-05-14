@@ -9,8 +9,8 @@ from .approach import BaseApproach
 class Appr(BaseApproach):
     """ Class implementing the Elastic Weight Consolidation approach described in http://arxiv.org/abs/1612.00796 """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=100,curriculum=None,lamb=5000):
-        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad,curriculum)
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=None,clipgrad=100,curriculum=None,log_path=None,lamb=5000):
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, warmup, clipgrad,curriculum, log_path)
         self.model_old=None
         self.fisher=None
 
@@ -18,10 +18,6 @@ class Appr(BaseApproach):
         self.lamb=lamb                      # Grid search = [500,1000,2000,5000,10000,20000,50000]; best was 5000
 
         return
-
-    def _get_optimizer(self,lr=None):
-        if lr is None: lr = self.lr
-        return torch.optim.SGD(self.model.parameters(),lr=lr)
 
     def train_batch(self,t,tt,i,x,y,c,b,r):
         with torch.no_grad():

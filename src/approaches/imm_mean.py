@@ -11,8 +11,8 @@ from .approach import BaseApproach
 class Appr(BaseApproach):
     """ Class implementing the Incremental Moment Matching (mean) approach described in https://arxiv.org/abs/1703.08475 """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,curriculum=None,regularizer=0.0001,alpha=0.7):
-        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad,curriculum)
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=None,clipgrad=10000,curriculum=None,log_path=None,regularizer=0.0001,alpha=0.7):
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, warmup, clipgrad,curriculum, log_path)
         self.model_old=None
 
         print("Setting regularizer to {}".format(regularizer))
@@ -20,10 +20,6 @@ class Appr(BaseApproach):
         #self.alpha=alpha       # We assume the same alpha for all tasks. Unrealistic to tune one alpha per task (num_task-1 alphas) when we have a lot of tasks.
 
         return
-
-    def _get_optimizer(self,lr=None):
-        if lr is None: lr=self.lr
-        return torch.optim.SGD(self.model.parameters(),lr=lr)
 
     def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
         # Restore best, save model as old

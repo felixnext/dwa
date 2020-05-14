@@ -9,8 +9,8 @@ from .approach import BaseApproach
 class Appr(BaseApproach):
     """ Class implementing the Learning Without Forgetting approach described in https://arxiv.org/abs/1606.09282 """
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=100,curriculum=None,lamb=2,T=1):
-        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, clipgrad,curriculum)
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=None,clipgrad=100,curriculum=None,log_path=None,lamb=2,T=1):
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, warmup, clipgrad,curriculum, log_path)
         self.model_old=None
 
         print("Setting parameters to:\n\tlamb: {}\n\tT: {}".format(lamb, T))
@@ -18,10 +18,6 @@ class Appr(BaseApproach):
         self.T=T                # Grid search = [0.5,1,2,4]; best was 1
 
         return
-
-    def _get_optimizer(self,lr=None):
-        if lr is None: lr=self.lr
-        return torch.optim.SGD(self.model.parameters(),lr=lr)
 
     def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
         self.model_old=deepcopy(self.model)

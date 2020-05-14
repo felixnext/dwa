@@ -15,11 +15,13 @@ class BaseApproach(object):
         lr_min (float): Minimal allowed learningrate
         lr_factor (float): Factor by which the learning rate will be reduced if loss does not change
         lr_patience (int): Epochs to wait before reducing learning rate
+        warmup (int): Tuple of integers containing (NUM_EPOCH_FOR_WARMUP, DIVISOR_OF_LEARNINGRATE)
         clipgrad (int): value at which gradients are clipped to avoid explosion
         curriculum (str): String to store the curriculum information - Format: "type:epochs:start:params" - type can be ['linear', 'exp', 'log']
+        log_path (Str): Path under which the log data is stored after training
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,clipgrad=10000,curriculum=None):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=None,clipgrad=10000,curriculum=None,log_path=None):
         self.model=model
 
         self.nepochs=nepochs
@@ -33,6 +35,19 @@ class BaseApproach(object):
         self.criterion=torch.nn.CrossEntropyLoss()
         self.optimizer=self._get_optimizer()
         self._parse_curriculum(curriculum)
+
+        # integrated logging for different values
+        self.logpath = log_path
+        if log_path is not None:
+            print("INFO: generating log at {}".format(log_path))
+            self.logs = {}
+            self.logs["learning_rate"] = {}
+        
+        # set settings for warmup
+        self.warmup = None
+        if (warmup is not None) and (isinstance(warmup, tuple) or isinstance(warmup, list)):
+            print("INFO: Using warmup for {} epochs with a lr divisor of {}".format(warmup[0], warmup[1]))
+            self.warmup = warmup
 
         return
     
@@ -58,7 +73,9 @@ class BaseApproach(object):
         }
 
     def _get_optimizer(self,lr=None):
-        raise NotImplementedError()
+        '''Retrieves the optimizer (default impl)'''
+        if lr is None: lr=self.lr
+        return torch.optim.SGD(self.model.parameters(),lr=lr)
 
     def train(self,t,xtrain,ytrain,xvalid,yvalid):
         '''Train the network for a specific task.
@@ -70,16 +87,18 @@ class BaseApproach(object):
             xvalid (numpy): Dataset of validation images
             yvalid (numpy): Dataset of validation targets
         '''
+        # set training params
         self.prepare_train(t)
         best_loss=np.inf
         best_model=utils.get_model(self.model)
-        lr=self.lr
+        lr=self.lr if self.warmup is None else self.lr / self.warmup[1]
         patience=self.lr_patience
         self.optimizer=self._get_optimizer(lr)
+        warmup_ep = self.warmup[0] if self.warmup is not None else 0
+        log_lr = []
 
         # compute the curriculum
         if self.curriculum is not None:
-            # TODO: allow to adjust params
             ctrain = utils.compute_curriculum(xtrain, name="train")
             cvalid = utils.compute_curriculum(xvalid, name="test")
             cthres = self._update_threshold(0., 0, 0)
@@ -98,20 +117,24 @@ class BaseApproach(object):
                 clock0=time.time()
                 cthres,num_used = self.train_epoch(t,xtrain,ytrain,ctrain,cthres,e)
                 clock1=time.time()
-                train_loss,train_acc,metric_str=self.eval(t,xtrain,ytrain,ctrain)
+                train_loss,train_acc,metric_str=self.eval(t,xtrain,ytrain,ctrain,"train")
                 clock2=time.time()
-                print('| Epoch {:3d}, time={:5.1f}ms/{:5.1f}ms | Cur: {:.2f} ({} of {}) | Train: loss={:.3f}, acc={:5.1f}%{} |'.format(e+1,
-                    1000*self.sbatch*(clock1-clock0)/xtrain.size(0),1000*self.sbatch*(clock2-clock1)/xtrain.size(0),cthres,num_used,xtrain.size(0),train_loss,100*train_acc,metric_str),end='')
+                print('| Epoch {:3d}, time={:5.1f}ms/{:5.1f}ms | Cur: {:.2f} ({} of {}) | LR: {:.5f} | Train: loss={:.3f}, acc={:5.1f}%{} |'.format(e+1,
+                    1000*self.sbatch*(clock1-clock0)/xtrain.size(0),1000*self.sbatch*(clock2-clock1)/xtrain.size(0),cthres,num_used,xtrain.size(0),lr,train_loss,100*train_acc,metric_str),end='')
                 # Valid
-                valid_loss,valid_acc,metric_str=self.eval(t,xvalid,yvalid,cvalid)
+                valid_loss,valid_acc,metric_str=self.eval(t,xvalid,yvalid,cvalid,"valid")
                 print(' Valid: loss={:.3f}, acc={:5.1f}%{} |'.format(valid_loss,100*valid_acc,metric_str),end='')
+
+                # log the learningrate
+                log_lr.append(lr)
+
                 # Adapt lr
                 if valid_loss<best_loss:
                     best_loss=valid_loss
                     best_model=utils.get_model(self.model)
                     patience=self.lr_patience
                     print(' *',end='')
-                elif cthres >= 1.:      # note: only break if all training data have been seen (i.e. threshold is 1)
+                elif cthres >= 1. and warmup_ep >= e:      # note: only break if all training data have been seen (i.e. threshold is 1)
                     patience-=1
                     if patience<=0:
                         lr/=self.lr_factor
@@ -123,9 +146,19 @@ class BaseApproach(object):
                         self.optimizer=self._get_optimizer(lr)
                 else:
                     patience=self.lr_patience
+                
+                # check if warmup ended (and adjust optimizer)
+                if (e+1) == warmup_ep:
+                    lr = self.lr
+                    self.optimizer=self._get_optimizer(lr)
+
                 print()
         except KeyboardInterrupt:
             print()
+        
+        # add to log
+        if self.logpath is not None:
+            self.logs["learning_rate"][t] = np.array(log_lr)
 
         # Restore best
         utils.set_model_(self.model,best_model)
@@ -211,7 +244,7 @@ class BaseApproach(object):
         idx = c <= thres
         return x[idx], y[idx], c[idx]
 
-    def eval(self,t,x,y,c=None):
+    def eval(self,t,x,y,c=None,prefix="test"):
         total_num=0
         total_items = { "loss": 0, "acc": 0 }
         self.model.eval()
@@ -242,6 +275,9 @@ class BaseApproach(object):
             if key in ["acc", "loss"]:
                 continue
             metric_str += ' {}: {:.3f}'.format(key,total_items[key]/total_num)
+        
+        # store logs
+        self.store_log(total_items, prefix, t)
 
         return total_items["loss"]/total_num,total_items["acc"]/total_num,metric_str
     
@@ -265,6 +301,20 @@ class BaseApproach(object):
         items["acc"] += hits.sum().data.cpu().numpy()
 
         return items
+    
+    def store_log(self, items, prefix, t):
+        # log data here (if requested)
+        if self.logpath is not None:
+            for metric in items:
+                # check if exists
+                name = "{}_{}".format(prefix, metric)
+                if name not in self.logs:
+                    self.logs[name] = {}
+                # add values
+                if t not in self.logs[name]:
+                    self.logs[name][t] = np.array(items[metric])
+                else:
+                    self.logs[name][t] = np.concatenate([self.logs[name][t], np.array(items[metric])], axis=0)
     
     def post_train(self, t,xtrain,ytrain,xvalid,yvalid):
         '''Code executed after successfully training a task.'''
