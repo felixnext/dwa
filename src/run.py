@@ -222,6 +222,10 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
         appr.train(task,xtrain,ytrain,xvalid,yvalid)
         print('-'*100)
 
+        # Free some cache
+        print("INFO: Free cuda cache")
+        torch.cuda.empty_cache() 
+
         # Test
         for u in range(t+1):
             xtest=data[u]['test']['x'].cuda()
