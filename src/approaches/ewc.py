@@ -28,7 +28,7 @@ class Appr(BaseApproach):
         outputs=self.model.forward(images)
         output=outputs[t]
         # ewc criterion acts as regularization applied to all weights
-        loss=self.ewc_criterion(t,output,targets)
+        loss,_=self.ewc_criterion(t,output,targets)
 
         # Backward
         self.optimizer.zero_grad()  # clear old gradients
@@ -38,7 +38,11 @@ class Appr(BaseApproach):
 
         return
 
-    def eval_batch(self,b,t,x,y,c,items):
+    def eval_batch(self,b,t,tt,x,y,c,items):
+        for n in ["reg"]:
+            if n not in items:
+                items[n] = 0
+
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
@@ -46,13 +50,14 @@ class Appr(BaseApproach):
         # Forward
         outputs=self.model.forward(images)
         output=outputs[t]
-        loss=self.ewc_criterion(t,output,targets)
+        loss,reg=self.ewc_criterion(t,output,targets)
         _,pred=output.max(1)
         hits=(pred==targets).float()
 
         # Log
         items["loss"]+=loss.data.cpu().numpy()*len(b)
         items["acc"]+=hits.sum().data.cpu().numpy()
+        items["reg"]+=reg.data.cpu().numpy()*len(b)
 
         return items
 
@@ -65,7 +70,7 @@ class Appr(BaseApproach):
                 # add the parameter change regulation to the regularization
                 loss_reg+=torch.sum(self.fisher[name]*(param_old-param).pow(2))/2   # default EWC formula
 
-        return self.criterion(output,targets)+self.lamb*loss_reg
+        return self.criterion(output,targets)+self.lamb*loss_reg,loss_reg
     
     def _fw_pass(self, model, t,tt, b, x, y):
         with torch.no_grad():
@@ -75,7 +80,7 @@ class Appr(BaseApproach):
         # Forward and backward (clear gradients and compute new ones)
         model.zero_grad()
         outputs=model.forward(images)
-        loss=self.ewc_criterion(t,outputs[t],target)
+        loss,_=self.ewc_criterion(t,outputs[t],target)
 
         return loss
 

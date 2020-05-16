@@ -38,7 +38,7 @@ class Appr(BaseApproach):
         scale_att_loss (bool): Defines if the attention loss should be scaled
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,500],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[1, 0.01], lamb_reg=10, delta=1, use_anchor_first=False, scale_att_loss=False):
+    def __init__(self,model,nepochs=100,sbatch=64,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,500],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[1, 0.01], lamb_reg=2, delta=1, use_anchor_first=False, scale_att_loss=False):
         super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, warmup, clipgrad, curriculum, log_path, AMP_READY)
 
         # set parameters
@@ -94,7 +94,7 @@ class Appr(BaseApproach):
         
         return
 
-    def eval_batch(self,b,t,x,y,c,items):
+    def eval_batch(self,b,t,tt,x,y,c,items):
         # set items
         for n in ["triplet", "att", "sparse"]:
             if n not in items:
@@ -104,7 +104,7 @@ class Appr(BaseApproach):
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
-            task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+            task=torch.autograd.Variable(tt)
             comp = torch.autograd.Variable(c[b])
         
         # forward pass
@@ -132,11 +132,11 @@ class Appr(BaseApproach):
             triplet = (1-c) * utils.anchor_loss(emb, self.anchor_pos, self.anchor_neg, self.anchor_task, self.alpha, self.delta)
             triplet = triplet.sum()
         else:
-            triplet = torch.zeros(1).cuda()
+            triplet = torch.zeros(1, device="cuda")
 
         # compute the remaining losses
-        att = torch.zeros(1).cuda()
-        reg = torch.zeros(1).cuda()
+        att = torch.zeros(1, device="cuda")
+        reg = torch.zeros(1, device="cuda")
         for i, (mask, name) in enumerate(masks):
             # only use fisher for 
             if t > 0:

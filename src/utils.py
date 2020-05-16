@@ -186,13 +186,13 @@ def fisher_matrix_diag(t,x,y,model,fw_pass,sbatch=20):
     # Init
     fisher={}
     for n,p in model.named_parameters():
-        fisher[n] = torch.zeros_like(p.data).cuda()
+        fisher[n] = torch.zeros_like(p.data, device='cuda')
         #fisher[n]=0*p.data      # multiply to get the right format and dtype?
 
     # create long-tensor model
     tot_len = x.size(0)
-    ba = torch.LongTensor(np.arange(0,tot_len)).cuda()
-    tt = torch.LongTensor([t]).cuda()
+    ba = torch.cuda.LongTensor(np.arange(0,tot_len))
+    tt = torch.cuda.LongTensor([t])
 
     # Compute
     model.train()   # set the model in training mode
@@ -294,8 +294,11 @@ def anchor_search(model, t, x, y, prev_anchors, criterion, searches=5, sbatch=64
         prev_anchors (List): List of tensors for the previous positive anchors for each task
         num_searches (int): Number of negative search iterations
     '''
+    # go to eval mode (as no loss is applied here)
+    model.eval()
     # search positive anchor
     vec = None
+    tt = torch.cuda.LongTensor([t])
 
     # iterate through positive data
     r=np.arange(x.size(0))
@@ -307,7 +310,7 @@ def anchor_search(model, t, x, y, prev_anchors, criterion, searches=5, sbatch=64
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
-            task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+            task=torch.autograd.Variable(tt)
             c = 1
 
         # compute the bector
@@ -330,7 +333,7 @@ def anchor_search(model, t, x, y, prev_anchors, criterion, searches=5, sbatch=64
             with torch.no_grad():
                 images=torch.autograd.Variable(x[b])
                 targets=torch.autograd.Variable(y[b])
-                task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+                task=torch.autograd.Variable(tt)
             
             yield images, targets, task
 

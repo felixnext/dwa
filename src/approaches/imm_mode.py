@@ -52,7 +52,7 @@ class Appr(BaseApproach):
 
         return
 
-    def train_batch(self,t,i,x,y,c,b,r):
+    def train_batch(self,t,tt,i,x,y,c,b,r):
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])

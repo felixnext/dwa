@@ -22,16 +22,14 @@ class Conv2d_dwa(torch.nn.Module):
     
     def forward(self, x, m):
         mask_weight = torch.mul(self.weight, m)
-        b_size = x.size()[0]
-        #out = []
+        b_size = x.size(0)
 
         # compute conv for each element in batch
-        out = F.conv2d(x.view(1, b_size*self._fin, x.size()[2], x.size()[3]), mask_weight.view(b_size*self._fout, self._fin, self._kh, self._kw), 
+        out = F.conv2d(x.view(1, b_size*self._fin, x.size(2), x.size(3)), mask_weight.view(b_size*self._fout, self._fin, self._kh, self._kw), 
             self.bias.repeat(b_size), self.stride, self.padding, self.dilation, groups=b_size)
-        out = out.view(b_size, self._fout, out.size()[2], out.size()[3])
-        #for i in range(x.size()[0]):
-        #    out.append(F.conv2d(x[i:i+1], mask_weight[i, ...], self.bias, self.stride, self.padding, self.dilation))
-        #out = torch.cat(out, dim=0)
+        
+        # split different kernel groups (keep output size in-tact)
+        out = out.view(b_size, self._fout, out.size(2), out.size(3))
         return out
 
 class Linear_dwa(torch.nn.Module):
@@ -45,6 +43,7 @@ class Linear_dwa(torch.nn.Module):
     def forward(self, x, m):
         # expand the weights for the relevant process
         mask_weight = torch.mul(self.weight, m).permute(0,2,1)
+        # NOTE: einsum appears to be not optimizable by APEX - therefore explicit cast to float
         out = torch.einsum("ac,acb->ab", x.float(), mask_weight.float()) + self.bias
         return out
 

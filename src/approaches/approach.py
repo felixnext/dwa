@@ -213,16 +213,17 @@ class BaseApproach(object):
         return min(thres, 1.)
 
     def train_epoch(self,t,x,y,c,thres,e):
-        self.model.train()
 
         # filter train data for the current epoch
         ex, ey, ec = self.apply_curriculum(t, x, y, c,thres)
         r=np.arange(ex.size(0))
         np.random.shuffle(r)
-        r=torch.LongTensor(r).cuda()
-        tt=torch.LongTensor([t]).cuda()
+        r=torch.cuda.LongTensor(r)
+        tt=torch.cuda.LongTensor([t])
 
+        # prepare the epoch and set it to train
         self.prepare_epoch(t, x, y, c)
+        self.model.train()
 
         # Loop batches
         for i in range(0,len(r),self.sbatch):
@@ -268,7 +269,8 @@ class BaseApproach(object):
         self.model.eval()
 
         r=np.arange(x.size(0))
-        r=torch.LongTensor(r).cuda()
+        r=torch.cuda.LongTensor(r)
+        tt=torch.cuda.LongTensor([t])
 
         # check if curriculum is given
         if c is None:
@@ -284,7 +286,7 @@ class BaseApproach(object):
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
 
-            total_items = self.eval_batch(b, t, x, y, c, total_items)
+            total_items = self.eval_batch(b, t, tt, x, y, c, total_items)
             total_num += len(b)
         
         # print everything not acc and loss
@@ -299,7 +301,7 @@ class BaseApproach(object):
 
         return total_items["loss"]/total_num,total_items["acc"]/total_num,metric_str
     
-    def eval_batch(self, b, t, x, y, c, items={}):
+    def eval_batch(self, b, t, tt, x, y, c, items={}):
         '''Eval code for a single batch.'''
         # avoid gradient on this
         with torch.no_grad():

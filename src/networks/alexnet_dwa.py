@@ -78,17 +78,17 @@ class Net(torch.nn.Module):
                 #self.pfc3 = torch.nn.Embedding(100 * len(taskcla), self.emb_size)
             else:
                 # check for input size and minimize
-                if self.processor_size[1] >= 16:
+                if self.processor_size[1] >= 14:
                     self.pc_min = torch.nn.MaxPool2d(2)
                     c, w, h = self.processor_size
                     self.processor_size = (c, w // 2, h // 2)
                 else:
                     self.pc_min = torch.nn.Identity()
-
+                
                 # compute processor
                 self.pc1 = torch.nn.Conv2d(self.processor_size[0], f_bn, (1,1), (1,1), 0)
                 self.pc2 = torch.nn.Conv2d(f_bn, f_out, (3,3), (2,2), 1)
-                cin = self.processor_size[1] // 2
+                cin = int(np.ceil(self.processor_size[1] / 2))
                 self.pfc1 = torch.nn.Linear(cin*cin*f_out, self.emb_size)
                 #self.pfc1 = torch.nn.Embedding(100 * len(taskcla), self.emb_size)
 

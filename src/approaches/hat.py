@@ -71,13 +71,13 @@ class Appr(BaseApproach):
 
         return
 
-    def eval_batch(self,b,t,x,y,c,items):
+    def eval_batch(self,b,t,tt,x,y,c,items):
         if "reg" not in items:
             items["reg"] = 0
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
             targets=torch.autograd.Variable(y[b])
-            task=torch.autograd.Variable(torch.LongTensor([t]).cuda())
+            task=torch.autograd.Variable(tt)
 
         # Forward
         outputs,masks=self.model.forward(task,images,s=self.smax)
