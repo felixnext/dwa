@@ -255,6 +255,9 @@ def anchor_loss(tensor, pos, neg, task_neg, alpha, delta):
 
 def sparsity_regularization(mask, sparsity, binary=True):
     '''Computes the sparsity regularization as percentage of elements non-zero per element in the batch.
+
+    When binary is enabled, all outputs in the mask that are non zero count equally into the sparsity
+    When binary is disabled, the regularization accounts for the 
     
     Args:
         mask (Tensor): Attention mask tensor of shape [BATCH, WEIGHTMASK] (where WEIGHTMASK is the shape of the weight tensor)
@@ -269,14 +272,10 @@ def sparsity_regularization(mask, sparsity, binary=True):
     if binary is True:
         regularization = torch.sum( (mask != 0), dim=dims)
     else:
-        batch = msize[0]
-        abs_mask = torch.abs(mask).view(batch, -1)
-        max_vals,_ = torch.max(abs_mask, dim=1)
-        divs = max_vals.repeat(abs_mask.size(1), 1).t()
-        regularization = torch.sum( abs_mask / divs, dim=1)
+        regularization = torch.sum(1 - torch.abs(mask), dim=dims)
 
     # ratio to total available elements
-    rate = np.max((msize[1:].numel(), 1.))
+    rate = torch.clamp(torch.cuda.FloatTensor([msize[1:].numel()]), min=1.)
     regularization = torch.div(regularization, rate)
 
     # check against sparsity constraints and create sum
