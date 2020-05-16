@@ -64,6 +64,9 @@ class Appr(BaseApproach):
         self.anchor_batches = 10        # number of batches to use for anchor training
         self.max_layers = 5
 
+        # helper to improve time on sparsity
+        self.sparsity_rates = {}
+
         return
 
     def train_batch(self,t,tt,i,x,y,c,b,r):
@@ -144,7 +147,15 @@ class Appr(BaseApproach):
                 if self.scale_attention is True:
                     scale = utils.scale_attention_loss(i, self.model.use_stem, self.max_layers, start=0.2)
                 att += torch.mul(mask * scale, self.fisher[name]).sum()
-            reg += utils.sparsity_regularization(mask, self.sparsity, self.bin_sparse)
+            
+            # compute sparsity (store rates to avoid tensor recreation)
+            rate = None
+            if name in self.sparsity_rates:
+                rate = self.sparsity_rates[name]
+            mreg, mrate = utils.sparsity_regularization(mask, self.sparsity, self.bin_sparse, rate=rate)
+            if rate is None:
+                self.sparsity_rates[name] = mrate
+            reg += mreg
 
         # return the combined losses
         if isinstance(self.lamb_loss, list) or isinstance(self.lamb_loss, tuple):

@@ -233,13 +233,15 @@ def anchor_loss(tensor, pos, neg, task_neg, alpha, delta):
         alpha: Controls the margin required between the vectors
         delta: Controls the impact of the task negative embedding
     '''
+    tsize = tensor.size()
+    psize = pos.size()
     # check the shape of the tensors for stacking (bring them to batch size)
-    if len(tensor.shape) > len(pos.shape):
-        ones = [1] * len(pos.shape)
-        pos = pos.repeat(tensor.shape[0], *ones)
-        neg = neg.repeat(tensor.shape[0], *ones)
+    if len(tsize) > len(psize):
+        ones = [1] * len(psize)
+        pos = pos.repeat(tsize[0], *ones)
+        neg = neg.repeat(tsize[0], *ones)
         if task_neg is not None:
-            task_neg = task_neg.repeat(tensor.shape[0], *ones)
+            task_neg = task_neg.repeat(tsize[0], *ones)
 
     # calculate difference
     p  = torch.sub(tensor, pos).norm(2)
@@ -253,7 +255,7 @@ def anchor_loss(tensor, pos, neg, task_neg, alpha, delta):
         res = res - (delta * tn)
     return torch.clamp(res, min=0)
 
-def sparsity_regularization(mask, sparsity, binary=True):
+def sparsity_regularization(mask, sparsity, binary=True, rate=None):
     '''Computes the sparsity regularization as percentage of elements non-zero per element in the batch.
 
     When binary is enabled, all outputs in the mask that are non zero count equally into the sparsity
@@ -265,8 +267,7 @@ def sparsity_regularization(mask, sparsity, binary=True):
         binary (bool): Pays only attention to non-zero elements (not gradularity)
     '''
     msize = mask.size()
-    rank = len(msize)
-    dims = list(range(rank))[1:]
+    dims = list(range(len(msize)))[1:]
 
     # compute total attention used for each batch element (total sum of active elements per batch)
     if binary is True:
@@ -275,14 +276,16 @@ def sparsity_regularization(mask, sparsity, binary=True):
         regularization = torch.sum(1 - torch.abs(mask), dim=dims)
 
     # ratio to total available elements
-    rate = torch.clamp(torch.cuda.FloatTensor([msize[1:].numel()]), min=1.)
+    if rate is None:
+        with torch.no_grad():
+            rate = torch.clamp(torch.cuda.FloatTensor([msize[1:].numel()]), min=1.)
     regularization = torch.div(regularization, rate)
 
     # check against sparsity constraints and create sum
     regularization = torch.clamp(regularization - sparsity, min=0)
     #regularization = torch.sum(torch.max(regularization, dim=0))   # would only count the max activation
     regularization = torch.sum(regularization)
-    return regularization
+    return regularization, rate
 
 def anchor_search(model, t, x, y, prev_anchors, criterion, searches=5, sbatch=64):
     '''Searches for the anchors of the respective model using low complexity input.
