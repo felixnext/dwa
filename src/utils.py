@@ -261,21 +261,22 @@ def sparsity_regularization(mask, sparsity, binary=True):
         sparsity (float): Percentage of target sparsity (e.g. 0.2 relates to 20% target sparisty of masks)
         binary (bool): Pays only attention to non-zero elements (not gradularity)
     '''
-    rank = len(mask.shape)
+    msize = mask.size()
+    rank = len(msize)
     dims = list(range(rank))[1:]
 
     # compute total attention used for each batch element (total sum of active elements per batch)
     if binary is True:
-        regularization = torch.sum( (mask != 0).type(torch.float32), dim=dims)
+        regularization = torch.sum( (mask != 0), dim=dims)
     else:
-        batch = mask.shape[0]
+        batch = msize[0]
         abs_mask = torch.abs(mask).view(batch, -1)
         max_vals,_ = torch.max(abs_mask, dim=1)
-        divs = max_vals.repeat(abs_mask.shape[1], 1).t()
+        divs = max_vals.repeat(abs_mask.size(1), 1).t()
         regularization = torch.sum( abs_mask / divs, dim=1)
 
     # ratio to total available elements
-    rate = np.max((mask.shape[1:].numel(), 1.))
+    rate = np.max((msize[1:].numel(), 1.))
     regularization = torch.div(regularization, rate)
 
     # check against sparsity constraints and create sum

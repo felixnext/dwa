@@ -119,8 +119,8 @@ class BaseApproach(object):
             cvalid = utils.compute_curriculum(xvalid, name="test")
             cthres = self._update_threshold(0., 0, 0)
         else:
-            ctrain = torch.ones(xtrain.size()[0])
-            cvalid = torch.ones(xvalid.size()[0])
+            ctrain = torch.ones(xtrain.size(0))
+            cvalid = torch.ones(xvalid.size(0))
             cthres = 1
         # push to cpu
         ctrain = ctrain.cuda()
@@ -136,7 +136,7 @@ class BaseApproach(object):
                 train_loss,train_acc,metric_str=self.eval(t,xtrain,ytrain,ctrain,"train")
                 clock2=time.time()
                 print('| Epoch {:3d}, time={:5.1f}ms/{:5.1f}ms | Cur: {:.2f} ({} of {}) | LR: {:.5f} | Train: loss={:.3f}, acc={:5.1f}%{} |'.format(e+1,
-                    1000*self.sbatch*(clock1-clock0)/xtrain.size(0),1000*self.sbatch*(clock2-clock1)/xtrain.size(0),cthres,num_used,xtrain.size(0),lr,train_loss,100*train_acc,metric_str),end='')
+                    1000*self.sbatch*(clock1-clock0)/num_used,1000*self.sbatch*(clock2-clock1)/xtrain.size(0),cthres,num_used,xtrain.size(0),lr,train_loss,100*train_acc,metric_str),end='')
                 # Valid
                 valid_loss,valid_acc,metric_str=self.eval(t,xvalid,yvalid,cvalid,"valid")
                 print(' Valid: loss={:.3f}, acc={:5.1f}%{} |'.format(valid_loss,100*valid_acc,metric_str),end='')

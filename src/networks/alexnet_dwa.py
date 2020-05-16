@@ -99,6 +99,7 @@ class Net(torch.nn.Module):
 
         # gates for this approach
         self.gate=torch.nn.Sigmoid()
+        #self.gate=torch.nn.Tanh()
 
         return
     
@@ -212,7 +213,7 @@ class Net(torch.nn.Module):
         if emb is None:
             emb = self.processor(p) if self.use_processor else t
         elif len(emb.size()) == 1:
-            emb = emb.repeat(x.size()[0], 1)
+            emb = emb.repeat(x.size(0), 1)
 
         # compute the kernel masks
         masks=self.mask(emb)
