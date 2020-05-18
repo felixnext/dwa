@@ -250,10 +250,11 @@ def anchor_loss(tensor, pos, neg, task_neg, alpha, delta):
         tn = torch.sub(tensor, task_neg).norm(2)
 
     # combine values
-    res = ((delta + 1) * p) - n + (delta + 1) * alpha
+    loss = torch.clamp(p - n + alpha, min=0)
     if task_neg is not None:
-        res = res - (delta * tn)
-    return torch.clamp(res, min=0)
+        loss += delta * torch.clamp(p - tn + alpha, min=0)
+        loss = loss / (1 + delta) # normalize the loss
+    return loss
 
 def sparsity_regularization(mask, sparsity, binary=True, rate=None):
     '''Computes the sparsity regularization as percentage of elements non-zero per element in the batch.
@@ -455,4 +456,7 @@ def is_number(s):
         pass
 
     return False
+
+def to_bool(b):
+    return b is True or (isinstance(b, str) and b.lower() == "true")
 ########################################################################################################################

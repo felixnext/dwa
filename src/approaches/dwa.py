@@ -31,26 +31,29 @@ class Appr(BaseApproach):
         sparsity (float): Soft-Constraint for the percentage of neurons used per layer for a specific task
         bin_sparsity (bool): Defines if sparsity should be calculated only as non-zero or gradular
         alpha (float): Margin that is enforced by the triplet loss function
-        lamb_loss (float): Scaling of the dwa dependend loss parts - Can also be a tuple or list that contains combined values
+        lamb_loss (float): Scaling of the dwa dependend loss parts - Can also be a tuple or list that contains combined values in format (triplet scale, attention scale)
         lamb_reg (float): Scaling of the regularization
         delta (float): Scaling of the task dependend loss (default 1) - might be changed over tasks progression
         use_anchor_first (bool): Defines if the anchor loss should be calculated for the first task
         scale_att_loss (bool): Defines if the attention loss should be scaled
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=32,lr=0.05,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,500],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[1, 0.01], lamb_reg=2, delta=1, use_anchor_first=False, scale_att_loss=False):
+    def __init__(self,model,nepochs=100,sbatch=32,lr=0.075,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,750],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[10, 5], lamb_reg=1, delta=2, use_anchor_first=False, scale_att_loss=False):
         super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, warmup, clipgrad, curriculum, log_path, AMP_READY)
 
         # set parameters
         print("Setting Parameters to:\n\tsparsity: {}{}\n\talpha: {}\n\tdelta: {}\n\tlambda: {} / {}\n\tanchor (first task): {}\n\tscale att: {}".format(sparsity, " (bin)" if bin_sparsity is True else "", alpha, delta, lamb_loss, lamb_reg, use_anchor_first, scale_att_loss))
         self.sparsity = sparsity
         self.alpha = alpha
-        self.lamb_loss = lamb_loss
+        if isinstance(lamb_loss, list) or isinstance(lamb_loss, tuple):
+            self.lamb_loss = lamb_loss
+        else:
+            self.lamb_loss = (lamb_loss, lamb_loss)
         self.lamb_reg = lamb_reg
         self.delta = delta
-        self.bin_sparse = bin_sparsity
-        self.use_anchor_first = use_anchor_first
-        self.scale_attention = scale_att_loss
+        self.bin_sparse = utils.to_bool(bin_sparsity)
+        self.use_anchor_first = utils.to_bool(use_anchor_first)
+        self.scale_attention = utils.to_bool(scale_att_loss)
 
         # define constants used over training
         self.fisher = None
@@ -131,22 +134,23 @@ class Appr(BaseApproach):
         loss = self.criterion(outputs, targets)
 
         # compute the triplet loss and weight on complexity
-        if t > 0 or self.use_anchor_first is True:
+        triplet = None
+        if t > 0 or (self.use_anchor_first is True):
             triplet = (1-c) * utils.anchor_loss(emb, self.anchor_pos, self.anchor_neg, self.anchor_task, self.alpha, self.delta)
             triplet = triplet.sum()
-        else:
-            triplet = torch.zeros(1, device="cuda")
 
         # compute the remaining losses
-        att = torch.zeros(1, device="cuda")
-        reg = torch.zeros(1, device="cuda")
+        att = None
+        reg = None
         for i, (mask, name) in enumerate(masks):
             # only use fisher for 
             if t > 0:
                 scale = 1
                 if self.scale_attention is True:
                     scale = utils.scale_attention_loss(i, self.model.use_stem, self.max_layers, start=0.2)
-                att += torch.mul(mask * scale, self.fisher[name]).sum()
+                val = torch.mul(mask * scale, self.fisher[name]).mean()     # tested sum - loss grows to high
+                # add to loss
+                att = val if att is None else att + val
             
             # compute sparsity (store rates to avoid tensor recreation)
             rate = None
@@ -155,13 +159,24 @@ class Appr(BaseApproach):
             mreg, mrate = utils.sparsity_regularization(mask, self.sparsity, self.bin_sparse, rate=rate)
             if rate is None:
                 self.sparsity_rates[name] = mrate
-            reg += mreg
-
+            # add to loss
+            reg = mreg if reg is None else reg + mreg
+        
         # return the combined losses
-        if isinstance(self.lamb_loss, list) or isinstance(self.lamb_loss, tuple):
-            loss_sum = loss + self.lamb_loss[0]*triplet + self.lamb_loss[1]*att + self.lamb_reg*reg
+        loss_sum = loss
+        if triplet is not None:
+            loss_sum += self.lamb_loss[0] * triplet
         else:
-            loss_sum = loss + self.lamb_loss*(triplet + att) + self.lamb_reg*reg
+            triplet = torch.zeros([1])
+        if att is not None:
+            loss_sum += self.lamb_loss[1] * att
+        else:
+            att = torch.zeros([1])
+        if reg is not None:
+            loss_sum += self.lamb_reg * reg
+        else:
+            reg = torch.zeros([1])
+        
         return loss_sum, triplet, att, reg
     
     def prepare_epoch(self, t, x, y, c):

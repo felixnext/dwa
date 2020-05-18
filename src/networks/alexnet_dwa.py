@@ -31,11 +31,11 @@ class Net(torch.nn.Module):
         ncha, size, _ = inputsize
         self.taskcla=taskcla                        # contains tasks with number of classes
         self.use_stem = use_stem                    # defines the number of stem layers to use (or None for none)
-        self.use_processor = use_processor          # defines if the pre-processor should be applied (or simply use task embeddings)
+        self.use_processor = utils.to_bool(use_processor)          # defines if the pre-processor should be applied (or simply use task embeddings)
         self.is_linear_processor = False if use_stem is None else use_stem > 3
-        self.use_combination = use_combination      # defines if attention masks should be generated through combination (to save weights)
-        self.use_concat = use_concat                # defines if input to the pre-processor should be concated
-        self.use_dropout = use_dropout
+        self.use_combination = utils.to_bool(use_combination)    # defines if attention masks should be generated through combination (to save weights)
+        self.use_concat = utils.to_bool(use_concat)                # defines if input to the pre-processor should be concated
+        self.use_dropout = utils.to_bool(use_dropout)
         self.emb_size = len(taskcla) if emb_size is None or use_processor is False else emb_size
 
         # create all relevant convolutions (either native as stem or dwa masked)
