@@ -237,3 +237,25 @@ class Appr(BaseApproach):
                 #self.fisher[n]=0.5*(self.fisher[n]+fisher_old[n])
 
         return
+    
+    def introspect(self, t, x, y):
+        '''Computes a forward pass on the network and returns all internal variables for introspection.'''
+        # NOTE: go through x and y in one batch
+        tt=torch.cuda.LongTensor([t])
+        with torch.no_grad():
+            images=torch.autograd.Variable(x)
+            targets=torch.autograd.Variable(y)
+            task=torch.autograd.Variable(tt)
+
+        # compute the forward pass
+        outputs, emb, masks = self.model.forward(task, images)
+        output = outputs[t]
+
+        # put data into array
+        return {
+            "images": x.data.cpu().numpy(),
+            "targets": y.data.cpu().numpy(),
+            "masks": dict([(name, m.data.cpu().numpy()) for m, name in masks]),
+            "emb": emb.data.cpu().numpy(),
+            "output": output.data.cpu().numpy()
+        }

@@ -2,6 +2,8 @@ import sys,os,argparse,time
 import numpy as np
 import torch
 import fire
+import gzip
+import pickle
 from networks.alexnet_dwa import Linear_dwa, Conv2d_dwa
 
 import utils
@@ -235,6 +237,21 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
             acc[t,u]=test_acc
             lss[t,u]=test_loss
 
+            # check for introspection method (and logs enabled)
+            if hasattr(appr, 'introspect') and appr.logs is not None:
+                # randomly select from dataset
+                idx = torch.randperm(xtest.size(0))
+                xrand = xtest[idx[:10]]
+                yrand = ytest[idx[:10]]
+
+                # compute
+                out = appr.introspect(u, xrand, yrand)
+
+                # pickle ouptut
+                print('Store task {} analytics'.format(data[u]['name']))
+                with gzip.open(os.path.join(appr.logpath, os.path.basename(output) + ".task{}_{}.analysis".format(u, data[u]['name'])), 'wb') as intro_file:
+                    pickle.dump(out, intro_file, pickle.HIGHEST_PROTOCOL)
+
         # check if result directory exists
         if not os.path.exists(os.path.dirname(output)):
             print("create output dir")
@@ -270,10 +287,14 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
                 appr.logs['test_acc'][t]  = deepcopy(acc[t,:])
                 appr.logs['test_loss'][t]  = deepcopy(lss[t,:])
             #pickle
-            import gzip
-            import pickle
             with gzip.open(os.path.join(appr.logpath, os.path.basename(output) + "_logs.gzip"), 'wb') as log_file:
                 pickle.dump(appr.logs, log_file, pickle.HIGHEST_PROTOCOL)
+    
+    # store the model (full and light versions)
+    model_file = os.path.join(appr.logpath, os.path.basename(output) + ".model")
+    torch.save(net, model_file)
+    model_file = os.path.join(appr.logpath, os.path.basename(output) + ".weights")
+    torch.save(net.state_dict(), model_file)
 
     ########################################################################################################################
 
