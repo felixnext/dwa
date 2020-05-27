@@ -126,7 +126,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
     if approach == "dwa":
         params = {}
         for key in parameters:
-            if key in ["use_processor", "processor_feats", "emb_size", "use_stem", "use_concat", "use_combination", "use_dropout"]:
+            if key in ["use_processor", "processor_feats", "emb_size", "use_stem", "use_concat", "use_combination", "use_dropout", "gate"]:
                 params[key] = parameters[key]
         net = network.Net(inputsize, taskcla, **params).cuda()
     else:
@@ -163,6 +163,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
             if type(m) == torch.nn.Conv2d or type(m) == Conv2d_dwa:
                 init_funcs[conv_init](m.weight)
                 init_funcs[conv_bias](m.bias)
+            # TODO: check for masks
                 
         # apply to network
         net.apply(init_weights)

@@ -20,7 +20,7 @@ class Net(torch.nn.Module):
         use_combination (bool): Defines if the attention mask should be computed through a combination of layers to save weights
     '''
 
-    def __init__(self,inputsize,taskcla, use_processor=True, processor_feats=(32, 128), emb_size=100, use_stem=1, use_concat=False, use_combination=True, use_dropout=False):
+    def __init__(self,inputsize,taskcla, use_processor=True, processor_feats=(32, 128), emb_size=100, use_stem=1, use_concat=False, use_combination=True, use_dropout=False, gate="sigmoid"):
         super(Net, self).__init__()
 
         # safty checks
@@ -98,8 +98,13 @@ class Net(torch.nn.Module):
             self.last.append(torch.nn.Linear(2048,n))
 
         # gates for this approach
-        self.gate=torch.nn.Sigmoid()
-        #self.gate=torch.nn.Tanh()
+        if gate == "tanh":
+            self.gate=torch.nn.Tanh()
+        elif gate == "sigmoid":
+            self.gate=torch.nn.Sigmoid()
+        else:
+            print("ERROR: given gate {} is unkown, using sigmoid")
+            self.gate = torch.nn.Sigmoid()
 
         return
     
