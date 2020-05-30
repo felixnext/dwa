@@ -91,6 +91,8 @@ class Net(torch.nn.Module):
                 cin = int(np.ceil(self.processor_size[1] / 2))
                 self.pfc1 = torch.nn.Linear(cin*cin*f_out, self.emb_size)
                 #self.pfc1 = torch.nn.Embedding(100 * len(taskcla), self.emb_size)
+        else:
+            self.task_eye = torch.eye(len(taskcla), requires_grad=False).cuda()
 
         # generate all possible heads (and put them in list - list is needed for torch to properly detect layers)
         self.last=torch.nn.ModuleList()
@@ -216,7 +218,7 @@ class Net(torch.nn.Module):
 
         # generate the embedding based on input (avoid if embedding is provided)
         if emb is None:
-            emb = self.processor(p) if self.use_processor else t
+            emb = self.processor(p) if self.use_processor else self.task_eye[t]
         elif len(emb.size()) == 1:
             emb = emb.repeat(x.size(0), 1)
 

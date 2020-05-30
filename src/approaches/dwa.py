@@ -36,10 +36,12 @@ class Appr(BaseApproach):
         delta (float): Scaling of the task dependend loss (default 1) - might be changed over tasks progression
         use_anchor_first (bool): Defines if the anchor loss should be calculated for the first task
         scale_att_loss (bool): Defines if the attention loss should be scaled
+        use_task_loss (bool): Defines if the task embedding loss should be used
+        use_apex (bool): Defines if nvidia apex optimzation should be used if available
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=32,lr=0.075,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,750],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[1, 100], lamb_reg=0.5, delta=2, use_anchor_first=False, scale_att_loss=False):
-        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, warmup, clipgrad, curriculum, log_path, AMP_READY)
+    def __init__(self,model,nepochs=100,sbatch=32,lr=0.075,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,750],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[1, 100], lamb_reg=0.5, delta=2, use_anchor_first=False, scale_att_loss=False, use_task_loss=False, use_apex=False):
+        super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, warmup, clipgrad, curriculum, log_path, AMP_READY and use_apex)
 
         # set parameters
         print("Setting Parameters to:\n\tsparsity: {}{}\n\talpha: {}\n\tdelta: {}\n\tlambda: {} / {}\n\tanchor (first task): {}\n\tscale att: {}".format(sparsity, " (bin)" if bin_sparsity is True else "", alpha, delta, lamb_loss, lamb_reg, use_anchor_first, scale_att_loss))
@@ -54,6 +56,7 @@ class Appr(BaseApproach):
         self.bin_sparse = utils.to_bool(bin_sparsity)
         self.use_anchor_first = utils.to_bool(use_anchor_first)
         self.scale_attention = utils.to_bool(scale_att_loss)
+        self.use_task_loss = utils.to_bool(use_task_loss)
 
         # define constants used over training
         self.fisher = None
@@ -69,6 +72,18 @@ class Appr(BaseApproach):
 
         # helper to improve time on sparsity
         self.sparsity_rates = {}
+
+        # generate all task losses
+        if self.use_task_loss is True:
+            print("INFO: Generating task loss")
+            num_tasks = len(model.taskcla)
+            emb_size = model.emb_size
+            elements = emb_size / num_tasks
+            ite = np.zeros((num_tasks, emb_size), np.float32)
+            for i in range(num_tasks):
+                ite[i, int(i*elements):int((i+1*elements))] = 1
+            self.ideal_task_embs = torch.from_numpy(ite).cuda()
+            self.emb_mse_criterion = torch.nn.MSELoss(reduction='none')
 
         return
 
@@ -138,6 +153,12 @@ class Appr(BaseApproach):
         if t > 0 or (self.use_anchor_first is True):
             triplet = (1-c) * utils.anchor_loss(emb, self.anchor_pos, self.anchor_neg, self.anchor_task, self.alpha, self.delta)
             triplet = triplet.sum()
+
+        # add the embedding loss (if enabled)
+        if self.model.use_processor is True and self.use_task_loss is True:
+            emb_loss = 500 * (1 - c) * self.emb_mse_criterion(emb, self.ideal_task_embs[t].repeat(emb.size(0), 1)).mean(-1)
+            emb_loss = emb_loss.sum()
+            triplet = emb_loss if triplet is None else triplet + emb_loss
 
         # compute the remaining losses
         att = None

@@ -9,6 +9,7 @@ from networks.alexnet_dwa import Linear_dwa, Conv2d_dwa
 import utils
 
 tstart=time.time()
+dwa_net_params = ["use_processor", "processor_feats", "emb_size", "use_stem", "use_concat", "use_combination", "use_dropout", "gate"]
 
 def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr=0.05, weight_init=None, test_mode=None, log_path=None, **parameters):
     '''Trains an experiment given the current settings.
@@ -34,7 +35,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
     # 
     args = {**parameters, "seed": seed, "experiment": experiment, "approach": approach, "output": output, "nepochs": nepochs, "lr": lr, "weight_init": weight_init}
     for arg in args:
-        print("\t{:10}: {}".format(arg, args[arg]))
+        print("\t{:15}: {}".format(arg, args[arg]))
     print('=' * 100)
 
     ########################################################################################################################
@@ -126,7 +127,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
     if approach == "dwa":
         params = {}
         for key in parameters:
-            if key in ["use_processor", "processor_feats", "emb_size", "use_stem", "use_concat", "use_combination", "use_dropout", "gate"]:
+            if key in dwa_net_params:
                 params[key] = parameters[key]
         net = network.Net(inputsize, taskcla, **params).cuda()
     else:
@@ -173,7 +174,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
     if approach == 'dwa':
         params = {}
         for key in parameters:
-            if key in ["sparsity", "bin_sparsity", "alpha", "delta", "lamb", "sbatch", "lr_min", "lr_factor", "lr_patience", "clipgrad", "curriculum"]:
+            if key not in dwa_net_params:
                 params[key] = parameters[key]
     appr=appr.Appr(net,nepochs=nepochs,lr=lr,log_path=log_path,**params)
     print(appr.criterion)
