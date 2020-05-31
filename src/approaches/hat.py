@@ -23,7 +23,7 @@ class Appr(BaseApproach):
 
         return
 
-    def train_batch(self,t,tt,i,x,y,c,b,r):
+    def train_batch(self,t,tt,i,x,y,c,b,r,e):
         # retrieve relevant data
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])

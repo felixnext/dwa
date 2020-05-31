@@ -34,13 +34,14 @@ class Appr(BaseApproach):
         lamb_loss (float): Scaling of the dwa dependend loss parts - Can also be a tuple or list that contains combined values in format (triplet scale, attention scale)
         lamb_reg (float): Scaling of the regularization
         delta (float): Scaling of the task dependend loss (default 1) - might be changed over tasks progression
+        stiff (int): Number of epochs in which to reduce the stiffness of the aux losses to 0 (if None, ignored)
         use_anchor_first (bool): Defines if the anchor loss should be calculated for the first task
         scale_att_loss (bool): Defines if the attention loss should be scaled
         use_task_loss (bool): Defines if the task embedding loss should be used
         use_apex (bool): Defines if nvidia apex optimzation should be used if available
     '''
 
-    def __init__(self,model,nepochs=100,sbatch=32,lr=0.075,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,750],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[1, 100], lamb_reg=0.5, delta=2, use_anchor_first=False, scale_att_loss=False, use_task_loss=False, use_apex=False):
+    def __init__(self,model,nepochs=100,sbatch=32,lr=0.075,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,750],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=0.5, lamb_loss=[1, 100], lamb_reg=0.5, delta=2, stiff=None, use_anchor_first=False, scale_att_loss=False, use_task_loss=False, use_apex=False):
         super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, warmup, clipgrad, curriculum, log_path, AMP_READY and use_apex)
 
         # set parameters
@@ -57,6 +58,7 @@ class Appr(BaseApproach):
         self.use_anchor_first = utils.to_bool(use_anchor_first)
         self.scale_attention = utils.to_bool(scale_att_loss)
         self.use_task_loss = utils.to_bool(use_task_loss)
+        self.stiff = stiff
 
         # define constants used over training
         self.fisher = None
@@ -87,7 +89,7 @@ class Appr(BaseApproach):
 
         return
 
-    def train_batch(self,t,tt,i,x,y,c,b,r):
+    def train_batch(self,t,tt,i,x,y,c,b,r,e):
         # retrieve relevant data
         with torch.no_grad():
             images=torch.autograd.Variable(x[b])
@@ -96,9 +98,10 @@ class Appr(BaseApproach):
             comp = torch.autograd.Variable(c[b])
         
         # compute forward pass
+        stiffness = e / self.stiff if self.stiff is not None else 1.0
         outputs, emb, masks = self.model.forward(task, images)
         output = outputs[t]
-        loss,_,_,_ = self.dwa_criterion(t, comp, output, targets, emb, masks)
+        loss,_,_,_ = self.dwa_criterion(t, comp, output, targets, emb, masks, stiffness)
 
         # backward pass
         self.optimizer.zero_grad()
@@ -144,7 +147,7 @@ class Appr(BaseApproach):
     
         return items
 
-    def dwa_criterion(self, t, c, outputs, targets, emb, masks):
+    def dwa_criterion(self, t, c, outputs, targets, emb, masks, stiff=1.0):
         # compute default loss
         loss = self.criterion(outputs, targets)
 
@@ -186,15 +189,15 @@ class Appr(BaseApproach):
         # return the combined losses
         loss_sum = loss
         if triplet is not None:
-            loss_sum += self.lamb_loss[0] * triplet
+            loss_sum += stiff * self.lamb_loss[0] * triplet
         else:
             triplet = torch.zeros([1])
         if att is not None:
-            loss_sum += self.lamb_loss[1] * att
+            loss_sum += stiff * self.lamb_loss[1] * att
         else:
             att = torch.zeros([1])
         if reg is not None:
-            loss_sum += self.lamb_reg * reg
+            loss_sum += stiff * self.lamb_reg * reg
         else:
             reg = torch.zeros([1])
         

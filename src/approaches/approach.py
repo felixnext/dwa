@@ -230,7 +230,7 @@ class BaseApproach(object):
             # retrieve batch data
             if i+self.sbatch<=len(r): b=r[i:i+self.sbatch]
             else: b=r[i:]
-            self.train_batch(t, tt, i, ex, ey, ec, b,r)
+            self.train_batch(t, tt, i, ex, ey, ec, b,r, e)
 
             # update batchwise (filtering not implemented)
             #thres = self._update_threshold(thres, e, float(i) / len(r))
