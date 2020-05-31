@@ -240,7 +240,7 @@ def main(seed=0, experiment='', approach='', output='', name='', nepochs=200, lr
             lss[t,u]=test_loss
 
             # check for introspection method (and logs enabled)
-            if hasattr(appr, 'introspect') and appr.logs is not None:
+            if hasattr(appr, 'introspect') and appr.logs is not None and (t+1 >= len(taskcla)):
                 # randomly select from dataset
                 idx = torch.randperm(xtest.size(0))
                 xrand = xtest[idx[:10]]

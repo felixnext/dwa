@@ -273,7 +273,7 @@ class Net(torch.nn.Module):
             l = self.mask_layers[i]
 
             # compute the mask
-            if self.use_combination:
+            if isinstance(l, torch.nn.ModuleList):
                 # NOTE: axis 0 is batch_size (so we do not expand there)
                 mraw = l[0](emb).unsqueeze(1) * l[1](emb).unsqueeze(-1)
             else:
