@@ -34,3 +34,6 @@ python3 run.py --name="lam100-01" --experiment=mixture --approach=dwa --weight_i
 python3 run.py --name="final-base" --experiment=mixture --approach=dwa --weight_init="kaiming:xavier" --nepochs=200 --delta=1.0 --alpha=1.0 --gate=tanh --lamb_reg=500 --lamb_loss=[20,0.05] --seed=0 --log_path="../res"
 python3 run.py --name="final-warm" --experiment=mixture --approach=dwa --weight_init="kaiming:xavier" --nepochs=200 --delta=1.0 --alpha=1.5 --gate=tanh --lamb_reg=500 --lamb_loss=[20,0.05] --warmup=[20,1000] --seed=0 --log_path="../res"
 python3 run.py --name="final-stif" --experiment=mixture --approach=dwa --weight_init="kaiming:xavier" --nepochs=200 --delta=1.0 --alpha=1.0 --gate=tanh --lamb_reg=500 --lamb_loss=[20,0.05] --stiff=200 --seed=0 --log_path="../res"
+
+# test mode
+python3 run.py --name="final-base" --experiment=mixture --approach=dwa --weight_init="kaiming:xavier" --nepochs=2 --test_mode=4 --delta=1.0 --alpha=1.0 --gate=tanh --lamb_reg=500 --lamb_loss=[20,0.05] --seed=0 --log_path="../res"

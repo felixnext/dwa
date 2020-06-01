@@ -172,7 +172,8 @@ class Appr(BaseApproach):
                 scale = 1
                 if self.scale_attention is True:
                     scale = utils.scale_attention_loss(i, self.model.use_stem, self.max_layers, start=0.2)
-                val = torch.mul(mask * scale, self.fisher[name]).mean()     # tested sum - loss grows to high
+                # NOTE: might want to add absolute here (otherwise negative loss for tanh)
+                val = torch.mul(torch.abs(mask * scale), self.fisher[name]).mean()     # tested sum - loss grows to high
                 # add to loss
                 att = val if att is None else att + val
             
