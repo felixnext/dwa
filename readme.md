@@ -27,6 +27,8 @@ Felix Geilert
 
 TODO
 
+> See also pdf in this repo
+
 
 ## Installing
 

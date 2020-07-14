@@ -14,3 +14,4 @@ src/__pycache__/
 # Files
 src/work.sh
 src/immalpha.sh
+.ipynb_checkpoints/

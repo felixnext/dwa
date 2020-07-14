@@ -41,7 +41,7 @@ class Appr(BaseApproach):
         use_apex (bool): Defines if nvidia apex optimzation should be used if available
     '''
 
-    def __init__(self,model,nepochs=200,sbatch=32,lr=0.075,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[5,750],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=1.0, lamb_loss=[10,0.05], lamb_reg=500, delta=1, stiff=None, use_anchor_first=False, scale_att_loss=False, use_task_loss=False, use_apex=False):
+    def __init__(self,model,nepochs=200,sbatch=32,lr=0.075,lr_min=1e-4,lr_factor=3,lr_patience=5,warmup=[10,750],clipgrad=10000, curriculum="linear:100:0.2",log_path=None, sparsity=0.2, bin_sparsity=False, alpha=1.0, lamb_loss=[10,0.05], lamb_reg=500, delta=1, stiff=None, use_anchor_first=False, scale_att_loss=False, use_task_loss=False, use_apex=False):
         super().__init__(model, nepochs, sbatch, lr, lr_min, lr_factor, lr_patience, warmup, clipgrad, curriculum, log_path, AMP_READY and use_apex)
 
         # set parameters
