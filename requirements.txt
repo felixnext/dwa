@@ -2,7 +2,7 @@ fire==0.2.1
 matplotlib==3.2.1
 numpy==1.22.0
 pandas==1.0.3
-torch==1.4.0
+torch==1.13.1
 torchvision==0.5.0
 tqdm==4.66.3
 scikit-learn==0.22.2
